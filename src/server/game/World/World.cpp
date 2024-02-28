@@ -59,10 +59,11 @@
 #include "Log.h"
 #include "LootItemStorage.h"
 #include "LootMgr.h"
+#include "M2Stores.h"
 #include "MMapFactory.h"
 #include "MapMgr.h"
 #include "Metric.h"
-#include "M2Stores.h"
+#include "MotdMgr.h"
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "OutdoorPvPMgr.h"
@@ -72,7 +73,6 @@
 #include "PoolMgr.h"
 #include "Realm.h"
 #include "ScriptMgr.h"
-#include "MotdMgr.h"
 #include "SkillDiscovery.h"
 #include "SkillExtraItems.h"
 #include "SmartAI.h"
@@ -494,6 +494,7 @@ void World::LoadConfigSettings(bool reload)
     _rate_values[RATE_DROP_ITEM_GROUP_AMOUNT]      = sConfigMgr->GetOption<float>("Rate.Drop.Item.GroupAmount", 1.0f);
     _rate_values[RATE_DROP_MONEY]                  = sConfigMgr->GetOption<float>("Rate.Drop.Money", 1.0f);
 
+    _rate_values[RATE_REWARD_QUEST_MONEY]          = sConfigMgr->GetOption<float>("Rate.RewardQuestMoney", 1.0f);
     _rate_values[RATE_REWARD_BONUS_MONEY]          = sConfigMgr->GetOption<float>("Rate.RewardBonusMoney", 1.0f);
     _rate_values[RATE_XP_KILL]                     = sConfigMgr->GetOption<float>("Rate.XP.Kill", 1.0f);
     _rate_values[RATE_XP_BG_KILL_AV]               = sConfigMgr->GetOption<float>("Rate.XP.BattlegroundKillAV", 1.0f);
@@ -1281,6 +1282,8 @@ void World::LoadConfigSettings(bool reload)
 
     _bool_configs[CONFIG_ALLOWS_RANK_MOD_FOR_PET_HEALTH] = sConfigMgr->GetOption<bool>("Pet.RankMod.Health", true);
 
+    _int_configs[CONFIG_DAILY_RBG_MIN_LEVEL_AP_REWARD] = sConfigMgr->GetOption<uint32>("DailyRBGArenaPoints.MinLevel", 71);
+
     _int_configs[CONFIG_AUCTION_HOUSE_SEARCH_TIMEOUT] = sConfigMgr->GetOption<uint32>("AuctionHouse.SearchTimeout", 1000);
 
     ///- Read the "Data" directory from the config file
@@ -1611,9 +1614,6 @@ void World::SetInitialWorldSettings()
 
     LOG_INFO("server.loading", "Loading Instance Template...");
     sObjectMgr->LoadInstanceTemplate();
-
-    LOG_INFO("server.loading", "Loading Instance Saved Gameobject State Data...");
-    sObjectMgr->LoadInstanceSavedGameobjectStateData();
 
     LOG_INFO("server.loading", "Loading Character Cache...");
     sCharacterCache->LoadCharacterCacheStorage();
@@ -3252,6 +3252,23 @@ void World::ProcessQueryCallbacks()
 void World::RemoveOldCorpses()
 {
     _timers[WUPDATE_CORPSES].SetCurrent(_timers[WUPDATE_CORPSES].GetInterval());
+}
+
+void World::DoForAllOnlinePlayers(std::function<void(Player*)> exec)
+{
+    std::shared_lock lock(*HashMapHolder<Player>::GetLock());
+    for (auto const& it : ObjectAccessor::GetPlayers())
+    {
+        if (Player* player = it.second)
+        {
+            if (!player->IsInWorld())
+            {
+                continue;
+            }
+
+            exec(player);
+        }
+    }
 }
 
 bool World::IsPvPRealm() const

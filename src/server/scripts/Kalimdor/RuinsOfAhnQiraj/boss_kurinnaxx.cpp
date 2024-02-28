@@ -15,9 +15,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "CreatureScript.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
-#include "ScriptMgr.h"
+#include "GameObjectScript.h"
 #include "ScriptedCreature.h"
 #include "TaskScheduler.h"
 #include "ruins_of_ahnqiraj.h"
@@ -44,11 +45,6 @@ struct boss_kurinnaxx : public BossAI
     void InitializeAI() override
     {
         me->m_CombatDistance = 50.0f;
-
-        scheduler.SetValidator([this]
-        {
-            return !me->HasUnitState(UNIT_STATE_CASTING);
-        });
     }
 
     void JustEngagedWith(Unit* who) override
@@ -87,10 +83,14 @@ struct boss_kurinnaxx : public BossAI
         if (killer)
         {
             killer->GetMap()->LoadGrid(-9502.80f, 2042.65f); // Ossirian grid
+            killer->GetMap()->LoadGrid(-8538.17f, 1486.09f); // Andorov run path grid
 
             if (Player* player = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
             {
-                player->SummonCreature(NPC_ANDOROV, -8538.177f, 1486.0956f, 32.39054f, 3.7638654f, TEMPSUMMON_CORPSE_DESPAWN, 600000000);
+                if (Creature* creature = player->SummonCreature(NPC_ANDOROV, -8538.177f, 1486.0956f, 32.39054f, 3.7638654f, TEMPSUMMON_CORPSE_DESPAWN, 0))
+                {
+                    creature->setActive(true);
+                }
             }
         }
 

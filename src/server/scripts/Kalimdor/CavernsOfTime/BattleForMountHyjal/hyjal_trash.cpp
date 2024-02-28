@@ -16,7 +16,7 @@
  */
 
 #include "hyjal_trash.h"
-#include "ScriptMgr.h"
+#include "CreatureScript.h"
 #include "ScriptedCreature.h"
 #include "hyjal.h"
 
@@ -1411,7 +1411,7 @@ public:
     {
         alliance_riflemanAI(Creature* creature) : ScriptedAI(creature)
         {
-            SetCombatMovement(false);
+            me->SetCombatMovement(false);
         }
 
         uint32 ExplodeTimer;

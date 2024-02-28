@@ -528,8 +528,14 @@ int32 AuraEffect::CalculateAmount(Unit* caster)
                 Item* item1 = caster->ToPlayer()->GetWeaponForAttack(BASE_ATTACK);
                 Item* item2 = caster->ToPlayer()->GetWeaponForAttack(OFF_ATTACK);
 
-                if (item1 && item2 && (item1->GetTemplate()->InventoryType == INVTYPE_2HWEAPON || item2->GetTemplate()->InventoryType == INVTYPE_2HWEAPON))
+                if (!item2)
+                    item2 = caster->ToPlayer()->GetShield();
+
+                if (item1 && item2
+                    && (item1->GetTemplate()->InventoryType == INVTYPE_2HWEAPON || item2->GetTemplate()->InventoryType == INVTYPE_2HWEAPON))
+                {
                     amount = -10;
+                }
                 else
                     amount = 0;
             }
@@ -2021,7 +2027,7 @@ void AuraEffect::HandleAuraModShapeshift(AuraApplication const* aurApp, uint8 mo
         if (!target->HasAuraType(SPELL_AURA_MOD_SHAPESHIFT))
         {
             target->SetShapeshiftForm(FORM_NONE);
-            if (target->getClass() == CLASS_DRUID)
+            if (target->IsClass(CLASS_DRUID, CLASS_CONTEXT_ABILITY))
             {
                 target->setPowerType(POWER_MANA);
                 // Remove movement impairing effects also when shifting out
@@ -2100,7 +2106,7 @@ void AuraEffect::HandleAuraModShapeshift(AuraApplication const* aurApp, uint8 mo
     if (target->GetTypeId() == TYPEID_PLAYER)
         target->ToPlayer()->InitDataForForm();
 
-    if (target->getClass() == CLASS_DRUID)
+    if (target->IsClass(CLASS_DRUID, CLASS_CONTEXT_ABILITY))
     {
         // Dash
         if (AuraEffect* aurEff = target->GetAuraEffect(SPELL_AURA_MOD_INCREASE_SPEED, SPELLFAMILY_DRUID, 0, 0, 0x8))
@@ -4139,6 +4145,7 @@ void AuraEffect::HandleModMechanicImmunity(AuraApplication const* aurApp, uint8 
             break;
         case 34471: // The Beast Within
         case 19574: // Bestial Wrath
+        case 38484: // Bestial Wrath
             mechanic = IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK;
             target->ApplySpellImmune(GetId(), IMMUNITY_MECHANIC, MECHANIC_CHARM, apply);
             target->ApplySpellImmune(GetId(), IMMUNITY_MECHANIC, MECHANIC_DISORIENTED, apply);
@@ -6031,7 +6038,7 @@ void AuraEffect::HandleAuraConvertRune(AuraApplication const* aurApp, uint8 mode
 
     Player* player = target->ToPlayer();
 
-    if (player->getClass() != CLASS_DEATH_KNIGHT)
+    if (!player->IsClass(CLASS_DEATH_KNIGHT, CLASS_CONTEXT_ABILITY))
         return;
 
     uint32 runes = m_amount;
@@ -6237,7 +6244,7 @@ void AuraEffect::HandlePeriodicDummyAuraTick(Unit* target, Unit* caster) const
                         {
                             // Converts up to 10 rage per second into health for $d.  Each point of rage is converted into ${$m2/10}.1% of max health.
                             // Should be manauser
-                            if (target->getPowerType() != POWER_RAGE)
+                            if (!target->HasActivePowerType(POWER_RAGE))
                                 break;
                             uint32 rage = target->GetPower(POWER_RAGE);
                             // Nothing todo
@@ -6303,7 +6310,7 @@ void AuraEffect::HandlePeriodicDummyAuraTick(Unit* target, Unit* caster) const
             {
                 if (target->GetTypeId() != TYPEID_PLAYER)
                     return;
-                if (target->ToPlayer()->getClass() != CLASS_DEATH_KNIGHT)
+                if (!target->ToPlayer()->IsClass(CLASS_DEATH_KNIGHT, CLASS_CONTEXT_ABILITY))
                     return;
 
                 // timer expired - remove death runes
@@ -6695,6 +6702,11 @@ void AuraEffect::HandlePeriodicDamageAurasTick(Unit* target, Unit* caster) const
     // Script Hook For HandlePeriodicDamageAurasTick -- Allow scripts to change the Damage pre class mitigation calculations
     sScriptMgr->ModifyPeriodicDamageAurasTick(target, caster, damage, GetSpellInfo());
 
+    if (target->GetAI())
+    {
+        target->GetAI()->OnCalculatePeriodicTickReceived(damage, caster);
+    }
+
     if (GetAuraType() == SPELL_AURA_PERIODIC_DAMAGE)
     {
         // xinef: leave only target depending bonuses, rest is handled in calculate amount
@@ -6804,6 +6816,11 @@ void AuraEffect::HandlePeriodicHealthLeechAuraTick(Unit* target, Unit* caster) c
 
     // Script Hook For HandlePeriodicHealthLeechAurasTick -- Allow scripts to change the Damage pre class mitigation calculations
     sScriptMgr->ModifyPeriodicDamageAurasTick(target, caster, damage, GetSpellInfo());
+
+    if (target->GetAI())
+    {
+        target->GetAI()->OnCalculatePeriodicTickReceived(damage, caster);
+    }
 
     if (GetBase()->GetType() == DYNOBJ_AURA_TYPE)
         damage = caster->SpellDamageBonusDone(target, GetSpellInfo(), damage, DOT, GetEffIndex(), 0.0f, GetBase()->GetStackAmount());
@@ -7014,6 +7031,11 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster) const
     sScriptMgr->ModifyPeriodicDamageAurasTick(target, caster, heal, GetSpellInfo());
     sScriptMgr->ModifyHealReceived(target, caster, heal, GetSpellInfo());
 
+    if (target->GetAI())
+    {
+        target->GetAI()->OnCalculatePeriodicTickReceived(heal, caster);
+    }
+
     HealInfo healInfo(caster, target, heal, GetSpellInfo(), GetSpellInfo()->GetSchoolMask());
     Unit::CalcHealAbsorb(healInfo);
     int32 gain = Unit::DealHeal(caster, target, healInfo.GetHeal());
@@ -7060,7 +7082,7 @@ void AuraEffect::HandlePeriodicManaLeechAuraTick(Unit* target, Unit* caster) con
 {
     Powers PowerType = Powers(GetMiscValue());
 
-    if (!caster || !caster->IsAlive() || !target->IsAlive() || target->getPowerType() != PowerType)
+    if (!caster || !caster->IsAlive() || !target->IsAlive() || !target->HasActivePowerType(PowerType))
         return;
 
     if (target->HasUnitState(UNIT_STATE_ISOLATED) || target->IsImmunedToDamageOrSchool(GetSpellInfo()))
@@ -7167,7 +7189,7 @@ void AuraEffect::HandlePeriodicEnergizeAuraTick(Unit* target, Unit* caster) cons
 {
     Powers PowerType = Powers(GetMiscValue());
 
-    if (target->GetTypeId() == TYPEID_PLAYER && target->getPowerType() != PowerType && !m_spellInfo->HasAttribute(SPELL_ATTR7_ONLY_IN_SPELLBOOK_UNTIL_LEARNED))
+    if (target->GetTypeId() == TYPEID_PLAYER && !target->HasActivePowerType(PowerType) && !m_spellInfo->HasAttribute(SPELL_ATTR7_ONLY_IN_SPELLBOOK_UNTIL_LEARNED))
         return;
 
     if (!target->IsAlive() || !target->GetMaxPower(PowerType))
@@ -7201,7 +7223,7 @@ void AuraEffect::HandlePeriodicPowerBurnAuraTick(Unit* target, Unit* caster) con
 {
     Powers PowerType = Powers(GetMiscValue());
 
-    if (!caster || !target->IsAlive() || target->getPowerType() != PowerType)
+    if (!caster || !target->IsAlive() || !target->HasActivePowerType(PowerType))
         return;
 
     if (target->HasUnitState(UNIT_STATE_ISOLATED) || target->IsImmunedToDamageOrSchool(GetSpellInfo()))
