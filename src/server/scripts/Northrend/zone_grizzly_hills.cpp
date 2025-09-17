@@ -26,8 +26,6 @@
 #include "SpellScript.h"
 #include "SpellScriptLoader.h"
 
- // Theirs
-
  /*######
  ## Quest 12027: Mr. Floppy's Perilous Adventure
  ######*/
@@ -797,7 +795,7 @@ public:
 
         void SpellHit(Unit* caster, SpellInfo const* spell) override
         {
-            if (spell->Id == SPELL_SMOKE_BOMB && caster->GetTypeId() == TYPEID_PLAYER)
+            if (spell->Id == SPELL_SMOKE_BOMB && caster->IsPlayer())
             {
                 me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
                 me->SetImmuneToPC(true);
@@ -961,35 +959,24 @@ enum ShredderDelivery
     NPC_BROKEN_DOWN_SHREDDER               = 27354
 };
 
-class spell_shredder_delivery : public SpellScriptLoader
+class spell_shredder_delivery : public SpellScript
 {
-public:
-    spell_shredder_delivery() : SpellScriptLoader("spell_shredder_delivery") { }
+    PrepareSpellScript(spell_shredder_delivery);
 
-    class spell_shredder_delivery_SpellScript : public SpellScript
+    bool Load() override
     {
-        PrepareSpellScript(spell_shredder_delivery_SpellScript);
+        return GetCaster()->IsCreature();
+    }
 
-        bool Load() override
-        {
-            return GetCaster()->GetTypeId() == TYPEID_UNIT;
-        }
-
-        void HandleScript(SpellEffIndex /*effIndex*/)
-        {
-            if (GetCaster()->ToCreature()->GetEntry() == NPC_BROKEN_DOWN_SHREDDER)
-                GetCaster()->ToCreature()->DespawnOrUnsummon();
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_shredder_delivery_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleScript(SpellEffIndex /*effIndex*/)
     {
-        return new spell_shredder_delivery_SpellScript();
+        if (GetCaster()->ToCreature()->GetEntry() == NPC_BROKEN_DOWN_SHREDDER)
+            GetCaster()->ToCreature()->DespawnOrUnsummon();
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_shredder_delivery::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
@@ -999,35 +986,29 @@ enum InfectedWorgenBite
     SPELL_WORGENS_CALL         = 53095
 };
 
-class spell_infected_worgen_bite : public SpellScriptLoader
+class spell_infected_worgen_bite_aura : public AuraScript
 {
-public:
-    spell_infected_worgen_bite() : SpellScriptLoader("spell_infected_worgen_bite") { }
+    PrepareAuraScript(spell_infected_worgen_bite_aura);
 
-    class spell_infected_worgen_bite_AuraScript : public AuraScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareAuraScript(spell_infected_worgen_bite_AuraScript);
+        return ValidateSpellInfo({ SPELL_WORGENS_CALL });
+    }
 
-        void HandleAfterEffectApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            Unit* target = GetTarget();
-            if (target->GetTypeId() == TYPEID_PLAYER)
-                if (GetStackAmount() == GetSpellInfo()->StackAmount)
-                {
-                    SetDuration(0);
-                    target->CastSpell(target, SPELL_WORGENS_CALL, true);
-                }
-        }
-
-        void Register() override
-        {
-            AfterEffectApply += AuraEffectApplyFn(spell_infected_worgen_bite_AuraScript::HandleAfterEffectApply, EFFECT_1, SPELL_AURA_PERIODIC_DAMAGE, AURA_EFFECT_HANDLE_REAPPLY);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    void HandleAfterEffectApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
-        return new spell_infected_worgen_bite_AuraScript();
+        Unit* target = GetTarget();
+        if (target->IsPlayer())
+            if (GetStackAmount() == GetSpellInfo()->StackAmount)
+            {
+                SetDuration(0);
+                target->CastSpell(target, SPELL_WORGENS_CALL, true);
+            }
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_infected_worgen_bite_aura::HandleAfterEffectApply, EFFECT_1, SPELL_AURA_PERIODIC_DAMAGE, AURA_EFFECT_HANDLE_REAPPLY);
     }
 };
 
@@ -1035,132 +1016,41 @@ public:
 ## Quest: Riding the Red Rocket
 ######*/
 
-enum RedRocket
-{
-    SPELL_VEHICLE_WARHEAD_FUSE = 49107,
-    SPELL_ALLIANCE_KILL_CREDIT_TORPEDO = 49510,
-    SPELL_HORDE_KILL_CREDIT_TORPEDO = 49340,
-    NPC_HORDE_LUMBERBOAT = 27702,
-    NPC_ALLIANCE_LUMBERBOAT = 27688,
-    SPELL_DETONATE = 49250
-};
-
-class npc_rocket_propelled_warhead : public CreatureScript
-{
-public:
-    npc_rocket_propelled_warhead() : CreatureScript("npc_rocket_propelled_warhead") { }
-
-    struct npc_rocket_propelled_warheadAI : public VehicleAI
-    {
-        npc_rocket_propelled_warheadAI(Creature* creature) : VehicleAI(creature), _faction(ALLIANCE), _finished(false)
-        {
-        }
-
-        void PassengerBoarded(Unit* who, int8 /*seatId*/, bool apply) override
-        {
-            if (apply && who && who->ToPlayer())
-            {
-                DoCast(me, SPELL_VEHICLE_WARHEAD_FUSE);
-                _faction = who->ToPlayer()->GetTeamId();
-            }
-        }
-
-        void JustReachedHome() override
-        {
-            _finished = false;
-            me->SetVisible(true);
-            me->GetMotionMaster()->Clear(true);
-        }
-
-        void DoAction(int32 /*action*/) override
-        {
-            FinishQuest(false, _faction);
-        }
-
-        void SpellHit(Unit* caster, SpellInfo const* /*spellInfo*/) override
-        {
-            if (caster && (caster->GetEntry() == NPC_HORDE_LUMBERBOAT || caster->GetEntry() == NPC_ALLIANCE_LUMBERBOAT))
-            {
-                FinishQuest(true, _faction);
-            }
-        }
-
-        void FinishQuest(bool success, uint32 faction)
-        {
-            if (_finished)
-            {
-                return;
-            }
-
-            _finished = true;
-
-            if (success)
-            {
-                DoCast(me, faction == ALLIANCE ? SPELL_ALLIANCE_KILL_CREDIT_TORPEDO : SPELL_HORDE_KILL_CREDIT_TORPEDO, true);
-            }
-
-            DoCast(me, SPELL_DETONATE, true);
-            me->RemoveAllAuras();
-            me->SetVisible(false);
-            me->GetMotionMaster()->MoveTargetedHome();
-        }
-
-    private:
-        uint32 _faction;
-        bool _finished;
-    };
-
-    CreatureAI* GetAI(Creature* creature) const override
-    {
-        return new npc_rocket_propelled_warheadAI(creature);
-    }
-};
-
 enum WarheadSpells
 {
+    SPELL_DETONATE = 49250,
     SPELL_WARHEAD_Z_CHECK = 61678,
     SPELL_WARHEAD_SEEKING_LUMBERSHIP = 49331,
     SPELL_WARHEAD_FUSE = 49181
 };
 // 49107 - Vehicle: Warhead Fuse
-class spell_vehicle_warhead_fuse : public SpellScriptLoader
+class spell_vehicle_warhead_fuse : public SpellScript
 {
-public:
-    spell_vehicle_warhead_fuse() : SpellScriptLoader("spell_vehicle_warhead_fuse") { }
+    PrepareSpellScript(spell_vehicle_warhead_fuse);
 
-    class spell_vehicle_warhead_fuse_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_vehicle_warhead_fuse_SpellScript);
+        return ValidateSpellInfo({
+            SPELL_WARHEAD_Z_CHECK,
+            SPELL_WARHEAD_SEEKING_LUMBERSHIP,
+            SPELL_WARHEAD_FUSE
+        });
+    }
 
-        bool Validate(SpellInfo const* /*spellInfo*/) override
-        {
-            return sSpellMgr->GetSpellInfo(SPELL_WARHEAD_Z_CHECK)
-                    && sSpellMgr->GetSpellInfo(SPELL_WARHEAD_SEEKING_LUMBERSHIP)
-                    && sSpellMgr->GetSpellInfo(SPELL_WARHEAD_FUSE);
-        }
-
-        void HandleDummy(SpellEffIndex /*effIndex*/)
-        {
-            Unit* caster = GetCaster();
-            if (!caster)
-            {
-                return;
-            }
-
-            caster->CastSpell(caster, SPELL_WARHEAD_Z_CHECK, true);
-            caster->CastSpell(caster, SPELL_WARHEAD_SEEKING_LUMBERSHIP, true);
-            caster->CastSpell(caster, SPELL_WARHEAD_FUSE, true);
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_vehicle_warhead_fuse_SpellScript::HandleDummy, EFFECT_1, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleDummy(SpellEffIndex /*effIndex*/)
     {
-        return new spell_vehicle_warhead_fuse_SpellScript();
+        Unit* caster = GetCaster();
+        if (!caster)
+            return;
+
+        caster->CastSpell(caster, SPELL_WARHEAD_Z_CHECK, true);
+        caster->CastSpell(caster, SPELL_WARHEAD_SEEKING_LUMBERSHIP, true);
+        caster->CastSpell(caster, SPELL_WARHEAD_FUSE, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_vehicle_warhead_fuse::HandleDummy, EFFECT_1, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
@@ -1171,132 +1061,91 @@ enum WarheadDenonate
     NPC_ALLIANCE_LUMBERBOAT_EXPLOSIONS = 27689
 };
 // 49250 - Detonate
-class spell_warhead_detonate : public SpellScriptLoader
+class spell_warhead_detonate : public SpellScript
 {
-public:
-    spell_warhead_detonate() : SpellScriptLoader("spell_warhead_detonate") { }
+    PrepareSpellScript(spell_warhead_detonate);
 
-    class spell_warhead_detonate_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_warhead_detonate_SpellScript);
+        return ValidateSpellInfo({ SPELL_PARACHUTE, SPELL_TORPEDO_EXPLOSION });
+    }
 
-        bool Validate(SpellInfo const* /*spellInfo*/) override
-        {
-            return sSpellMgr->GetSpellInfo(SPELL_PARACHUTE) && sSpellMgr->GetSpellInfo(SPELL_TORPEDO_EXPLOSION);
-        }
-
-        void HandleDummy(SpellEffIndex /*effIndex*/)
-        {
-            Unit* caster = GetCaster();
-            Player* player = GetHitPlayer();
-            if (!player || !caster)
-            {
-                return;
-            }
-
-            player->ExitVehicle();
-            float horizontalSpeed = 3.0f;
-            float verticalSpeed = 40.0f;
-            player->KnockbackFrom(caster->GetPositionX(), caster->GetPositionY(), horizontalSpeed, verticalSpeed);
-            player->RemoveAurasDueToSpell(SPELL_WARHEAD_FUSE);
-
-            std::list<Creature*> explosionBunnys;
-            caster->GetCreatureListWithEntryInGrid(explosionBunnys, NPC_ALLIANCE_LUMBERBOAT_EXPLOSIONS, 90.0f);
-            for (auto itr = explosionBunnys.begin(); itr != explosionBunnys.end(); ++itr)
-            {
-                (*itr)->CastSpell((*itr), SPELL_TORPEDO_EXPLOSION, true);
-            }
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_warhead_detonate_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleDummy(SpellEffIndex /*effIndex*/)
     {
-        return new spell_warhead_detonate_SpellScript();
+        Unit* caster = GetCaster();
+        Player* player = GetHitPlayer();
+        if (!player || !caster)
+        {
+            return;
+        }
+
+        player->ExitVehicle();
+        float horizontalSpeed = 3.0f;
+        float verticalSpeed = 40.0f;
+        player->KnockbackFrom(caster->GetPositionX(), caster->GetPositionY(), horizontalSpeed, verticalSpeed);
+        player->RemoveAurasDueToSpell(SPELL_WARHEAD_FUSE);
+
+        std::list<Creature*> explosionBunnys;
+        caster->GetCreatureListWithEntryInGrid(explosionBunnys, NPC_ALLIANCE_LUMBERBOAT_EXPLOSIONS, 90.0f);
+        for (auto itr = explosionBunnys.begin(); itr != explosionBunnys.end(); ++itr)
+        {
+            (*itr)->CastSpell((*itr), SPELL_TORPEDO_EXPLOSION, true);
+        }
+
+        if (Creature* rocket = caster->ToCreature())
+            rocket->DespawnOrUnsummon();
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_warhead_detonate::HandleDummy, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
 // 61678 - Z Check
-class spell_z_check : public SpellScriptLoader
+class spell_z_check_aura : public AuraScript
 {
-public:
-    spell_z_check() : SpellScriptLoader("spell_z_check") { }
+    PrepareAuraScript(spell_z_check_aura);
 
-    class spell_z_check_AuraScript : public AuraScript
+    void HandleEffectApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
-    public:
-        spell_z_check_AuraScript() : AuraScript(), _posZ(0) {}
+        _posZ = GetTarget()->GetPositionZ();
+    }
 
-        PrepareAuraScript(spell_z_check_AuraScript);
+    void HandleEffectPeriodic(AuraEffect const* /*aurEff*/)
+    {
+        PreventDefaultAction();
 
-        void HandleEffectApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            _posZ = GetTarget()->GetPositionZ();
-        }
-
-        void HandleEffectPeriodic(AuraEffect const* /*aurEff*/)
-        {
-            PreventDefaultAction();
-
-            if (_posZ != GetTarget()->GetPositionZ())
-            {
-                if (Creature* target = GetTarget()->ToCreature())
-                {
-                    target->AI()->DoAction(0);
-                }
-            }
-        }
+        if (_posZ != GetTarget()->GetPositionZ())
+            if (Creature* target = GetTarget()->ToCreature())
+                target->AI()->DoCastSelf(SPELL_DETONATE, true);
+    }
 
     private:
-        float _posZ;
+    float _posZ;
 
-        void Register() override
-        {
-            OnEffectApply += AuraEffectApplyFn(spell_z_check_AuraScript::HandleEffectApply, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL, AURA_EFFECT_HANDLE_REAL);
-            OnEffectPeriodic += AuraEffectPeriodicFn(spell_z_check_AuraScript::HandleEffectPeriodic, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    void Register() override
     {
-        return new spell_z_check_AuraScript();
+        OnEffectApply += AuraEffectApplyFn(spell_z_check_aura::HandleEffectApply, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL, AURA_EFFECT_HANDLE_REAL);
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_z_check_aura::HandleEffectPeriodic, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
     }
 };
 
 // 49181 - Warhead Fuse
-class spell_warhead_fuse : public SpellScriptLoader
+class spell_warhead_fuse_aura : public AuraScript
 {
-public:
-    spell_warhead_fuse() : SpellScriptLoader("spell_warhead_fuse") { }
+    PrepareAuraScript(spell_warhead_fuse_aura);
 
-    class spell_warhead_fuse_AuraScript : public AuraScript
+    void HandleOnEffectRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
-        PrepareAuraScript(spell_warhead_fuse_AuraScript);
+        if (Unit* rocketUnit = GetTarget()->GetVehicleBase())
+            if (Creature* rocketCrea = rocketUnit->ToCreature())
+                rocketCrea->AI()->DoCastSelf(SPELL_DETONATE, true);
+    }
 
-        void HandleOnEffectRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            if (Unit* rocketUnit = GetTarget()->GetVehicleBase())
-            {
-                if (Creature* rocketCrea = rocketUnit->ToCreature())
-                {
-                    rocketCrea->AI()->DoAction(0);
-                }
-            }
-        }
-
-        void Register() override
-        {
-            OnEffectRemove += AuraEffectRemoveFn(spell_warhead_fuse_AuraScript::HandleOnEffectRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    void Register() override
     {
-        return new spell_warhead_fuse_AuraScript();
+        OnEffectRemove += AuraEffectRemoveFn(spell_warhead_fuse_aura::HandleOnEffectRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
     }
 };
 
@@ -1326,7 +1175,6 @@ class spell_frog_kiss : public SpellScript
 
 void AddSC_grizzly_hills()
 {
-    // Theirs
     new npc_emily();
     new npc_mrfloppy();
     new npc_ravenous_worg();
@@ -1336,15 +1184,13 @@ void AddSC_grizzly_hills()
     RegisterSpellScript(spell_renew_skirmisher);
     new npc_venture_co_straggler();
     new npc_lake_frog();
-    new spell_shredder_delivery();
-    new spell_infected_worgen_bite();
-    new npc_rocket_propelled_warhead();
-    new spell_z_check();
-    new spell_warhead_detonate();
-    new spell_vehicle_warhead_fuse();
-    new spell_warhead_fuse();
+    RegisterSpellScript(spell_shredder_delivery);
+    RegisterSpellScript(spell_infected_worgen_bite_aura);
+    RegisterSpellScript(spell_z_check_aura);
+    RegisterSpellScript(spell_warhead_detonate);
+    RegisterSpellScript(spell_vehicle_warhead_fuse);
+    RegisterSpellScript(spell_warhead_fuse_aura);
     RegisterSpellScript(spell_q12227_outhouse_groans);
     RegisterSpellScript(spell_q12227_camera_shake);
     RegisterSpellScript(spell_frog_kiss);
 }
-

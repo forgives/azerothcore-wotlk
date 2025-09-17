@@ -78,6 +78,7 @@ void AddSC_bosses_opera();
 void AddSC_boss_netherspite();
 void AddSC_karazhan();
 void AddSC_boss_nightbane();
+void AddSC_boss_tenris_mirkblood();
 void AddSC_boss_felblood_kaelthas();         // Magister's Terrace
 void AddSC_boss_selin_fireheart();
 void AddSC_boss_vexallus();
@@ -157,7 +158,6 @@ void AddSC_isle_of_queldanas();
 void AddSC_redridge_mountains();
 void AddSC_silverpine_forest();
 void AddSC_stormwind_city();
-void AddSC_tirisfal_glades();
 void AddSC_undercity();
 void AddSC_western_plaguelands();
 void AddSC_westfall();
@@ -230,6 +230,7 @@ void AddEasternKingdomsScripts()
     AddSC_boss_netherspite();
     AddSC_karazhan();
     AddSC_boss_nightbane();
+    AddSC_boss_tenris_mirkblood();
     AddSC_boss_felblood_kaelthas();         // Magister's Terrace
     AddSC_boss_selin_fireheart();
     AddSC_boss_vexallus();
@@ -309,7 +310,6 @@ void AddEasternKingdomsScripts()
     AddSC_redridge_mountains();
     AddSC_silverpine_forest();
     AddSC_stormwind_city();
-    AddSC_tirisfal_glades();
     AddSC_undercity();
     AddSC_western_plaguelands();
     AddSC_westfall();

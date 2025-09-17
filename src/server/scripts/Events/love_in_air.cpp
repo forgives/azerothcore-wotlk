@@ -62,7 +62,7 @@ struct npc_love_in_air_supply_sentry : public ScriptedAI
 
     void MoveInLineOfSight(Unit* who) override
     {
-        if (lock > 1000 && me->GetDistance(who) < 10.0f && who->GetTypeId() == TYPEID_PLAYER && who->HasAura(SPELL_GOBLIN_DISGUISE) && !who->HasAura(SPELL_GOBLIN_CARRY_CRATE))
+        if (lock > 1000 && me->GetDistance(who) < 10.0f && who->IsPlayer() && who->HasAura(SPELL_GOBLIN_DISGUISE) && !who->HasAura(SPELL_GOBLIN_CARRY_CRATE))
         {
             lock = 0;
             if (urand(0, 1))
@@ -135,7 +135,7 @@ struct npc_love_in_air_snivel : public NullCreatureAI
 
     void MoveInLineOfSight(Unit* who) override
     {
-        if (delay == 0 && me->GetDistance(who) < 7.0f && who->GetTypeId() == TYPEID_PLAYER)
+        if (delay == 0 && me->GetDistance(who) < 7.0f && who->IsPlayer())
         {
             Player* plr = who->ToPlayer();
             if (AllowAction(plr))
@@ -407,7 +407,7 @@ class spell_love_is_in_the_air_romantic_picnic : public AuraScript
         std::list<Player*> playerList;
         Acore::AnyPlayerInObjectRangeCheck checker(target, INTERACTION_DISTANCE * 2);
         Acore::PlayerListSearcher<Acore::AnyPlayerInObjectRangeCheck> searcher(target, playerList, checker);
-        Cell::VisitWorldObjects(target, searcher, INTERACTION_DISTANCE * 2);
+        Cell::VisitObjects(target, searcher, INTERACTION_DISTANCE * 2);
         for (std::list<Player*>::const_iterator itr = playerList.begin(); itr != playerList.end(); ++itr)
         {
             if ((*itr) != target && (*itr)->HasAura(GetId())) // && (*itr)->getStandState() == UNIT_STAND_STATE_SIT)
@@ -454,7 +454,7 @@ class spell_gen_aura_service_uniform : public AuraScript
     {
         // Apply model goblin
         Unit* target = GetTarget();
-        if (target->GetTypeId() == TYPEID_PLAYER)
+        if (target->IsPlayer())
         {
             if (target->getGender() == GENDER_MALE)
             {
@@ -472,7 +472,7 @@ class spell_gen_aura_service_uniform : public AuraScript
     void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         Unit* target = GetTarget();
-        if (target->GetTypeId() == TYPEID_PLAYER)
+        if (target->IsPlayer())
             target->RestoreDisplayId();
     }
 
@@ -496,4 +496,3 @@ void AddSC_event_love_in_the_air()
     RegisterSpellScript(spell_love_is_in_the_air_romantic_picnic);
     RegisterSpellScript(spell_gen_aura_service_uniform);
 }
-

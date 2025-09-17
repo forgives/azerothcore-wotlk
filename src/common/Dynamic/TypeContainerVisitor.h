@@ -24,7 +24,6 @@
  * to overload its types as a visit method is called.
  */
 
-#include "Define.h"
 #include "Dynamic/TypeContainer.h"
 
 // forward declaration
@@ -53,6 +52,27 @@ template<class VISITOR, class H, class T> void VisitorHelper(VISITOR& v, Contain
 
 // for TypeMapContainer
 template<class VISITOR, class OBJECT_TYPES> void VisitorHelper(VISITOR& v, TypeMapContainer<OBJECT_TYPES>& c)
+{
+    VisitorHelper(v, c.GetElements());
+}
+
+// VectorContainer
+template<class VISITOR> void VisitorHelper(VISITOR& /*v*/, ContainerVector<TypeNull>& /*c*/) {}
+
+template<class VISITOR, class T> void VisitorHelper(VISITOR& v, ContainerVector<T>& c)
+{
+    v.Visit(c._element);
+}
+
+// recursion container map list
+template<class VISITOR, class H, class T> void VisitorHelper(VISITOR& v, ContainerVector<TypeList<H, T>>& c)
+{
+    VisitorHelper(v, c._elements);
+    VisitorHelper(v, c._TailElements);
+}
+
+// for TypeMapContainer
+template<class VISITOR, class OBJECT_TYPES> void VisitorHelper(VISITOR& v, TypeVectorContainer<OBJECT_TYPES>& c)
 {
     VisitorHelper(v, c.GetElements());
 }

@@ -17,7 +17,6 @@
 
 #include "Chat.h"
 #include "CommandScript.h"
-#include "DatabaseEnv.h"
 #include "GroupMgr.h"
 #include "Language.h"
 #include "Player.h"
@@ -37,6 +36,7 @@ public:
             { "join",    HandleGroupJoinCommand,    SEC_GAMEMASTER, Console::No },
             { "remove",  HandleGroupRemoveCommand,  SEC_GAMEMASTER, Console::No },
             { "disband", HandleGroupDisbandCommand, SEC_GAMEMASTER, Console::No },
+            { "revive",  HandleGroupReviveCommand,  SEC_GAMEMASTER, Console::No },
             { "leader",  HandleGroupLeaderCommand,  SEC_GAMEMASTER, Console::No }
         };
 
@@ -157,7 +157,7 @@ public:
                         {
                             groupSource->AddMember(playerTarget);
                             groupSource->BroadcastGroupUpdate();
-                            handler->PSendSysMessage(LANG_GROUP_PLAYER_JOINED, playerTarget->GetName().c_str(), playerSource->GetName().c_str());
+                            handler->PSendSysMessage(LANG_GROUP_PLAYER_JOINED, playerTarget->GetName(), playerSource->GetName());
                             return true;
                         }
                         else
@@ -170,7 +170,7 @@ public:
                     else
                     {
                         // group is full or target player already in a group
-                        handler->PSendSysMessage(LANG_GROUP_ALREADY_IN_GROUP, playerTarget->GetName().c_str());
+                        handler->PSendSysMessage(LANG_GROUP_ALREADY_IN_GROUP, playerTarget->GetName());
                         return true;
                     }
                 }
@@ -178,7 +178,7 @@ public:
             else
             {
                 // specified source player is not in a group
-                handler->PSendSysMessage(LANG_GROUP_NOT_IN_GROUP, playerSource->GetName().c_str());
+                handler->PSendSysMessage(LANG_GROUP_NOT_IN_GROUP, playerSource->GetName());
                 return true;
             }
         }
@@ -215,7 +215,7 @@ public:
 
         if (!groupTarget)
         {
-            handler->PSendSysMessage(LANG_GROUP_NOT_IN_GROUP, target->GetName().c_str());
+            handler->PSendSysMessage(LANG_GROUP_NOT_IN_GROUP, target->GetName());
             return true;
         }
 
@@ -253,6 +253,39 @@ public:
             if (flags.empty())
             {
                 flags = "None";
+            }
+        }
+
+        return true;
+    }
+
+    static bool HandleGroupReviveCommand(ChatHandler* handler, Optional<PlayerIdentifier> target)
+    {
+        if (!target)
+            target = PlayerIdentifier::FromTargetOrSelf(handler);
+
+        if (!target)
+            return false;
+
+        Player* targetPlayer = target->GetConnectedPlayer();
+        Group* group = targetPlayer->GetGroup();
+        std::string nameLink = handler->playerLink(target->GetName());
+
+        if (!group)
+        {
+            handler->SendErrorMessage(LANG_NOT_IN_GROUP, nameLink);
+            return false;
+        }
+
+        for (GroupReference* it = group->GetFirstMember(); it != nullptr; it = it->next())
+        {
+            Player* target = it->GetSource();
+            if (target)
+            {
+                target->RemoveAurasDueToSpell(27827); // Spirit of Redemption
+                target->ResurrectPlayer(!AccountMgr::IsPlayerAccount(target->GetSession()->GetSecurity()) ? 1.0f : 0.5f);
+                target->SpawnCorpseBones();
+                target->SaveToDB(false, false);
             }
         }
 

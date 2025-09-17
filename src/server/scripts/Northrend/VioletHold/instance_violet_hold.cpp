@@ -19,6 +19,7 @@
 #include "InstanceMapScript.h"
 #include "Player.h"
 #include "ScriptedCreature.h"
+#include "WorldStateDefines.h"
 #include "violet_hold.h"
 
 enum vYells
@@ -32,7 +33,7 @@ enum vYells
 class instance_violet_hold : public InstanceMapScript
 {
 public:
-    instance_violet_hold() : InstanceMapScript("instance_violet_hold", 608) { }
+    instance_violet_hold() : InstanceMapScript("instance_violet_hold", MAP_VIOLET_HOLD) { }
 
     InstanceScript* GetInstanceScript(InstanceMap* pMap) const override
     {
@@ -107,7 +108,7 @@ public:
 
         void OnCreatureCreate(Creature* creature) override
         {
-            switch(creature->GetEntry())
+            switch (creature->GetEntry())
             {
                 case NPC_SINCLARI:
                     NPC_SinclariGUID = creature->GetGUID();
@@ -162,7 +163,7 @@ public:
 
         void OnGameObjectCreate(GameObject* go) override
         {
-            switch(go->GetEntry())
+            switch (go->GetEntry())
             {
                 case GO_ACTIVATION_CRYSTAL:
                     HandleGameObject(ObjectGuid::Empty, false, go); // make go not used yet
@@ -202,7 +203,7 @@ public:
 
         void SetData(uint32 type, uint32 data) override
         {
-            switch(type)
+            switch (type)
             {
                 case DATA_ACTIVATE_DEFENSE_SYSTEM:
                     {
@@ -217,7 +218,11 @@ public:
                     {
                         EncounterStatus = IN_PROGRESS;
                         if (Creature* c = instance->GetCreature(NPC_SinclariGUID))
+                        {
+                            c->RemoveNpcFlag(UNIT_NPC_FLAG_GOSSIP);
                             c->AI()->Talk(SAY_SINCLARI_LEAVING);
+                            /// @todo: Missing orientation for Sinclari's movement and "interaction" animation with the nearby crystal.
+                        }
                         events.RescheduleEvent(EVENT_GUARDS_FALL_BACK, 4s);
                     }
                     break;
@@ -235,7 +240,7 @@ public:
                         CLEANED = false;
                         InstanceCleanup();
                     }
-                    DoUpdateWorldState(WORLD_STATE_VH_PRISON_STATE, (uint32)GateHealth);
+                    DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_PRISON_STATE, (uint32)GateHealth);
                     break;
                 case DATA_RELEASE_BOSS:
                     if (WaveCount == 6)
@@ -253,7 +258,7 @@ public:
                         m_auiEncounter[2] = DONE;
                         EncounterStatus = DONE;
                         HandleGameObject(GO_MainGateGUID, true);
-                        DoUpdateWorldState(WORLD_STATE_VH_SHOW, 0);
+                        DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_SHOW, 0);
                         if (Creature* c = instance->GetCreature(NPC_SinclariGUID))
                         {
                             c->AI()->Talk(SAY_SINCLARI_COMPLETE);
@@ -277,7 +282,7 @@ public:
 
         void SetGuidData(uint32 type, ObjectGuid data) override
         {
-            switch(type)
+            switch (type)
             {
                 case DATA_ADD_TRASH_MOB:
                     trashMobs.insert(data);
@@ -291,7 +296,7 @@ public:
 
         uint32 GetData(uint32 type) const override
         {
-            switch(type)
+            switch (type)
             {
                 case DATA_ENCOUNTER_STATUS:
                     return (uint32)EncounterStatus;
@@ -333,7 +338,7 @@ public:
         {
             Creature* pBoss = nullptr;
 
-            switch(uiBoss)
+            switch (uiBoss)
             {
                 case BOSS_MORAGG:
                     HandleGameObject(GO_MoraggCellGUID, true);
@@ -403,13 +408,13 @@ public:
         void Update(uint32 diff) override
         {
             events.Update(diff);
-            switch( events.ExecuteEvent() )
+            switch (events.ExecuteEvent())
             {
                 case 0:
                     break;
                 case EVENT_CHECK_PLAYERS:
                     {
-                        if( DoNeedCleanup(false) )
+                        if (DoNeedCleanup(false))
                             InstanceCleanup();
                         events.Repeat(5s);
                     }
@@ -450,6 +455,7 @@ public:
                     {
                         if (Creature* c = instance->GetCreature(NPC_SinclariGUID))
                         {
+                            c->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
                             c->AI()->Talk(SAY_SINCLARI_DOOR_LOCK);
                         }
                         if (Creature* c = instance->GetCreature(NPC_DoorSealGUID))
@@ -458,9 +464,9 @@ public:
                         }
                         GateHealth = 100;
                         HandleGameObject(GO_MainGateGUID, false);
-                        DoUpdateWorldState(WORLD_STATE_VH_SHOW, 1);
-                        DoUpdateWorldState(WORLD_STATE_VH_PRISON_STATE, (uint32)GateHealth);
-                        DoUpdateWorldState(WORLD_STATE_VH_WAVE_COUNT, (uint32)WaveCount);
+                        DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_SHOW, 1);
+                        DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_PRISON_STATE, (uint32)GateHealth);
+                        DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_WAVE_COUNT, (uint32)WaveCount);
 
                         for (ObjectGuid const& guid : GO_ActivationCrystalGUID)
                             if (GameObject* go = instance->GetGameObject(guid))
@@ -473,7 +479,7 @@ public:
                     break;
                 case EVENT_SUMMON_PORTAL:
                     ++WaveCount;
-                    DoUpdateWorldState(WORLD_STATE_VH_WAVE_COUNT, (uint32)WaveCount);
+                    DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_WAVE_COUNT, (uint32)WaveCount);
                     SetData(DATA_PORTAL_LOCATION, (GetData(DATA_PORTAL_LOCATION) + urand(1, 5)) % 6);
                     if (Creature* c = instance->GetCreature(NPC_SinclariGUID))
                     {
@@ -522,17 +528,17 @@ public:
 
         void OnPlayerEnter(Player* plr) override
         {
-            if( DoNeedCleanup(plr->IsAlive()) )
+            if (DoNeedCleanup(plr->IsAlive()))
                 InstanceCleanup();
 
             if (EncounterStatus == IN_PROGRESS)
             {
-                plr->SendUpdateWorldState(WORLD_STATE_VH_SHOW, 1);
-                plr->SendUpdateWorldState(WORLD_STATE_VH_PRISON_STATE, (uint32)GateHealth);
-                plr->SendUpdateWorldState(WORLD_STATE_VH_WAVE_COUNT, (uint32)WaveCount);
+                plr->SendUpdateWorldState(WORLD_STATE_VIOLET_HOLD_SHOW, 1);
+                plr->SendUpdateWorldState(WORLD_STATE_VIOLET_HOLD_PRISON_STATE, (uint32)GateHealth);
+                plr->SendUpdateWorldState(WORLD_STATE_VIOLET_HOLD_WAVE_COUNT, (uint32)WaveCount);
             }
             else
-                plr->SendUpdateWorldState(WORLD_STATE_VH_SHOW, 0);
+                plr->SendUpdateWorldState(WORLD_STATE_VIOLET_HOLD_SHOW, 0);
 
             events.RescheduleEvent(EVENT_CHECK_PLAYERS, 5s);
         }
@@ -542,19 +548,19 @@ public:
             uint8 aliveCount = 0;
             Map::PlayerList const& pl = instance->GetPlayers();
             for( Map::PlayerList::const_iterator itr = pl.begin(); itr != pl.end(); ++itr )
-                if( Player* plr = itr->GetSource() )
-                    if( plr->IsAlive() && !plr->IsGameMaster() && !plr->HasAura(27827)/*spirit of redemption aura*/ )
+                if (Player* plr = itr->GetSource())
+                    if (plr->IsAlive() && !plr->IsGameMaster() && !plr->HasAura(27827)/*spirit of redemption aura*/ )
                         ++aliveCount;
 
             bool need = enter ? aliveCount <= 1 : aliveCount == 0;
-            if( !need && CLEANED )
+            if (!need && CLEANED)
                 CLEANED = false;
             return need;
         }
 
         void InstanceCleanup()
         {
-            if( CLEANED )
+            if (CLEANED)
                 return;
             CLEANED = true;
 
@@ -567,7 +573,13 @@ public:
                 }
 
             // reset positions of Sinclari and Guards
-            if (Creature* c = instance->GetCreature(NPC_SinclariGUID)) { c->DespawnOrUnsummon(); c->SetRespawnTime(3); }
+            if (Creature* c = instance->GetCreature(NPC_SinclariGUID))
+            {
+                c->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+                c->DespawnOrUnsummon();
+                c->SetRespawnTime(3);
+            }
+
             for (uint8 i = 0; i < 4; ++i)
                 if (Creature* c = instance->GetCreature(NPC_GuardGUID[i]))
                 {
@@ -625,7 +637,7 @@ public:
             }
 
             // reinitialize variables and events
-            DoUpdateWorldState(WORLD_STATE_VH_SHOW, 0);
+            DoUpdateWorldState(WORLD_STATE_VIOLET_HOLD_SHOW, 0);
             EncounterStatus = NOT_STARTED;
             GateHealth = 100;
             WaveCount = 0;
@@ -638,7 +650,7 @@ public:
 
         bool CheckAchievementCriteriaMeet(uint32 criteria_id, Player const*  /*source*/, Unit const*  /*target*/, uint32  /*miscvalue1*/) override
         {
-            switch(criteria_id)
+            switch (criteria_id)
             {
                 case CRITERIA_DEFENSELESS:
                     return GateHealth == 100 && !bDefensesUsed;
@@ -677,4 +689,3 @@ void AddSC_instance_violet_hold()
 {
     new instance_violet_hold();
 }
-

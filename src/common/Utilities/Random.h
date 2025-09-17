@@ -17,7 +17,8 @@
 
 #ifndef Random_h__
 #define Random_h__
-
+#undef max
+#undef min
 #include "Define.h"
 #include "Duration.h"
 #include <limits>
@@ -37,6 +38,9 @@ AC_COMMON_API uint32 rand32();
 /* Return a random time in the range min..max (up to millisecond precision). Only works for values where millisecond difference is a valid uint32. */
 AC_COMMON_API Milliseconds randtime(Milliseconds min, Milliseconds max);
 
+/* Return a random time in the range min..max (up to second precision). */
+AC_COMMON_API Seconds randtime(Seconds min, Seconds max);
+
 /* Return a random number in the range min..max */
 AC_COMMON_API float frand(float min, float max);
 
@@ -47,7 +51,7 @@ AC_COMMON_API double rand_norm();
 AC_COMMON_API double rand_chance();
 
 /* Return a random number in the range 0..count (exclusive) with each value having a different chance of happening */
-AC_COMMON_API uint32 urandweighted(size_t count, double const* chances);
+AC_COMMON_API uint32 urandweighted(std::size_t count, double const* chances);
 
 /* Return true if a random roll fits in the specified chance (range 0-100). */
 inline bool roll_chance_f(float chance)

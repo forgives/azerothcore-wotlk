@@ -15,6 +15,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "AreaDefines.h"
 #include "CreatureScript.h"
 #include "PassiveAI.h"
 #include "Player.h"
@@ -27,58 +28,50 @@
 #include "SpellScript.h"
 #include "SpellScriptLoader.h"
 
-// Ours
 enum eDrakeHunt
 {
     SPELL_DRAKE_HATCHLING_SUBDUED       = 46691,
     SPELL_SUBDUED                       = 46675
 };
 
-class spell_q11919_q11940_drake_hunt : public SpellScriptLoader
+class spell_q11919_q11940_drake_hunt_aura : public AuraScript
 {
-public:
-    spell_q11919_q11940_drake_hunt() : SpellScriptLoader("spell_q11919_q11940_drake_hunt") { }
+    PrepareAuraScript(spell_q11919_q11940_drake_hunt_aura);
 
-    class spell_q11919_q11940_drake_hunt_AuraScript : public AuraScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareAuraScript(spell_q11919_q11940_drake_hunt_AuraScript)
+        return ValidateSpellInfo({ SPELL_SUBDUED, SPELL_DRAKE_HATCHLING_SUBDUED });
+    }
 
-        bool Load() override
-        {
-            return GetOwner()->GetTypeId() == TYPEID_UNIT;
-        }
-
-        void HandleEffectRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE || !GetCaster())
-                return;
-
-            Creature* owner = GetOwner()->ToCreature();
-            owner->RemoveAllAurasExceptType(SPELL_AURA_DUMMY);
-            owner->CombatStop(true);
-            owner->GetThreatMgr().ClearAllThreat();
-            owner->GetMotionMaster()->Clear(false);
-            owner->GetMotionMaster()->MoveFollow(GetCaster(), 4.0f, M_PI, MOTION_SLOT_ACTIVE);
-            owner->CastSpell(owner, SPELL_SUBDUED, true);
-            GetCaster()->CastSpell(GetCaster(), SPELL_DRAKE_HATCHLING_SUBDUED, true);
-            owner->SetFaction(FACTION_FRIENDLY);
-            owner->SetImmuneToAll(true);
-            owner->DespawnOrUnsummon(3 * MINUTE * IN_MILLISECONDS);
-        }
-
-        void Register() override
-        {
-            AfterEffectRemove += AuraEffectRemoveFn(spell_q11919_q11940_drake_hunt_AuraScript::HandleEffectRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    bool Load() override
     {
-        return new spell_q11919_q11940_drake_hunt_AuraScript();
+        return GetOwner()->IsCreature();
+    }
+
+    void HandleEffectRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE || !GetCaster())
+            return;
+
+        Creature* owner = GetOwner()->ToCreature();
+        owner->RemoveAllAurasExceptType(SPELL_AURA_DUMMY);
+        owner->CombatStop(true);
+        owner->GetThreatMgr().ClearAllThreat();
+        owner->GetMotionMaster()->Clear(false);
+        owner->GetMotionMaster()->MoveFollow(GetCaster(), 4.0f, M_PI, MOTION_SLOT_ACTIVE);
+        owner->CastSpell(owner, SPELL_SUBDUED, true);
+        GetCaster()->CastSpell(GetCaster(), SPELL_DRAKE_HATCHLING_SUBDUED, true);
+        owner->SetFaction(FACTION_FRIENDLY);
+        owner->SetImmuneToAll(true);
+        owner->DespawnOrUnsummon(3 * MINUTE * IN_MILLISECONDS);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(spell_q11919_q11940_drake_hunt_aura::HandleEffectRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
     }
 };
 
-// Theirs
 /*######
 ## npc_sinkhole_kill_credit
 ######*/
@@ -223,14 +216,14 @@ public:
         {
             ScriptedAI::MoveInLineOfSight(who);
 
-            if (who->GetTypeId() != TYPEID_UNIT)
+            if (!who->IsCreature())
                 return;
 
             if (who->GetEntry() == NPC_ORPHANED_MAMMOTH_CALF && me->IsWithinDistInMap(who, 10.0f))
             {
                 if (Unit* owner = who->GetOwner())
                 {
-                    if (owner->GetTypeId() == TYPEID_PLAYER)
+                    if (owner->IsPlayer())
                     {
                         owner->CastSpell(owner, SPELL_MAMMOTH_CALF_ESCORT_CREDIT, true);
                         who->ToCreature()->DespawnOrUnsummon();
@@ -320,7 +313,7 @@ public:
 
         void JustDied(Unit* killer) override
         {
-            if (!killer || killer->GetTypeId() != TYPEID_PLAYER)
+            if (!killer || !killer->IsPlayer())
             {
                 return;
             }
@@ -437,7 +430,7 @@ public:
 
                         case 6:
                             if (Player* player = GetPlayerForEscort())
-                                player->AreaExploredOrEventHappens(QUEST_ESCAPE_WINTERFIN_CAVERNS);
+                                player->GroupEventHappens(QUEST_ESCAPE_WINTERFIN_CAVERNS, me);
                             IntroPhase = 7;
                             IntroTimer = 2500;
                             break;
@@ -478,6 +471,92 @@ public:
         }
         return false;
     }
+};
+
+/*######
+## Quest 11881: Load'er Up
+######*/
+
+// NPC 25969: Jenny
+enum Jenny
+{
+    EVENT_JENNY_START_FOLLOW                        = 1,
+    EVENT_JENNY_MOVE_TO_FEZZIX                      = 2,
+    EVENT_JENNY_DESPAWN                             = 3,
+    SPELL_CRATES_CARRIED                            = 46340,
+    SPELL_DROP_CRATE                                = 46342,
+    SPELL_GIVE_JENNY_CREDIT                         = 46358,
+    NPC_FEZZIX_GEARTWIST                            = 25849
+};
+
+struct npc_jenny : public FollowerAI
+{
+    npc_jenny(Creature* creature) : FollowerAI(creature)
+    {
+        Initialize();
+    }
+
+    void Initialize()
+    {
+        me->SetReactState(REACT_PASSIVE);
+        me->CastSpell(me, SPELL_CRATES_CARRIED);
+
+        // can't update follow here, call later
+        _events.ScheduleEvent(EVENT_JENNY_START_FOLLOW, 1s);
+    }
+
+    void DamageTaken(Unit* /*attacker*/, uint32& /*damage*/, DamageEffectType /*type*/, SpellSchoolMask /*school*/) override
+    {
+        if (me->HasAura(SPELL_CRATES_CARRIED))
+            me->CastSpell(me, SPELL_DROP_CRATE);
+        else
+            me->DespawnOrUnsummon();
+    }
+
+    void UpdateFollowerAI(uint32 diff) override
+    {
+        _events.Update(diff);
+
+        if (uint32 eventId = _events.ExecuteEvent())
+        {
+            switch (eventId)
+            {
+                case EVENT_JENNY_START_FOLLOW:
+                    // This NPC only moves at its fixed speed_run rate in the db
+                    // and does not inherit the speed of the target
+                    if (TempSummon* summon = me->ToTempSummon())
+                        if (Unit* summonerUnit = summon->GetSummonerUnit())
+                            if (Player* summoner = summonerUnit->ToPlayer())
+                                StartFollow(summoner, 0, nullptr, true, false);
+                    break;
+                case EVENT_JENNY_MOVE_TO_FEZZIX:
+                    me->SetWalk(true);
+                    me->GetMotionMaster()->MovePoint(0, _fezzix);
+                    _events.ScheduleEvent(EVENT_JENNY_DESPAWN, 7s);
+                    break;
+                case EVENT_JENNY_DESPAWN:
+                    me->DespawnOrUnsummon();
+                    break;
+            }
+        }
+    }
+
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (who->GetEntry() == NPC_FEZZIX_GEARTWIST && me->IsWithinDistInMap(who, 15.0f))
+        {
+            if (TempSummon* s = me->ToTempSummon())
+                if (Unit* u = s->GetSummonerUnit())
+                    if (Player* p = u->ToPlayer())
+                        me->CastSpell(p, SPELL_GIVE_JENNY_CREDIT);
+            SetFollowComplete(true);
+            _fezzix = who->GetPosition();
+            _events.ScheduleEvent(EVENT_JENNY_MOVE_TO_FEZZIX, 1s);
+        }
+    }
+private:
+    EventMap _events;
+    Position _fezzix;
 };
 
 /*######
@@ -630,16 +709,23 @@ public:
                 switch (eventId)
                 {
                     case EVENT_ADD_ARCANE_CHAINS:
-                        if (Player* summoner = me->ToTempSummon()->GetSummonerUnit()->ToPlayer())
+                        if (TempSummon* tempSummon = me->ToTempSummon())
                         {
-                            summoner->CastSpell(summoner, SPELL_ARCANE_CHAINS_CHANNEL_II, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_AURA_INTERRUPT_FLAGS & ~TRIGGERED_IGNORE_CAST_ITEM & ~TRIGGERED_IGNORE_POWER_AND_REAGENT_COST & ~TRIGGERED_IGNORE_GCD));
-                            _events.ScheduleEvent(EVENT_FOLLOW_PLAYER, 1s);
+                            if (Unit* summoner = tempSummon->GetSummonerUnit())
+                            {
+                                summoner->CastSpell(summoner, SPELL_ARCANE_CHAINS_CHANNEL_II, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_AURA_INTERRUPT_FLAGS & ~TRIGGERED_IGNORE_CAST_ITEM & ~TRIGGERED_IGNORE_POWER_AND_REAGENT_COST & ~TRIGGERED_IGNORE_GCD));
+                                _events.ScheduleEvent(EVENT_FOLLOW_PLAYER, 1s);
+                            }
                         }
                         break;
+
                     case EVENT_FOLLOW_PLAYER:
-                        if (Player* summoner = me->ToTempSummon()->GetSummonerUnit()->ToPlayer())
+                        if (TempSummon* tempSummon = me->ToTempSummon())
                         {
-                            StartFollow(summoner);
+                            if (Player* summoner = tempSummon->GetSummonerUnit()->ToPlayer())
+                            {
+                                StartFollow(summoner);
+                            }
                         }
                         break;
                 }
@@ -667,29 +753,23 @@ public:
 };
 
 // Spell 45625: - Arcane Chains: Character Force Cast
-class spell_arcane_chains_character_force_cast : public SpellScriptLoader
+class spell_arcane_chains_character_force_cast : public SpellScript
 {
-public:
-    spell_arcane_chains_character_force_cast() : SpellScriptLoader("spell_arcane_chains_character_force_cast") {}
+    PrepareSpellScript(spell_arcane_chains_character_force_cast);
 
-    class spell_arcane_chains_character_force_cast_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_arcane_chains_character_force_cast_SpellScript);
+        return ValidateSpellInfo({ SPELL_ARCANE_CHAINS_SUMMON_CHAINED_MAGE_HUNTER, 45626 });
+    }
 
-        void HandleScriptEffect(SpellEffIndex /* effIndex */)
-        {
-            GetHitUnit()->CastSpell(GetCaster(), SPELL_ARCANE_CHAINS_SUMMON_CHAINED_MAGE_HUNTER, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_SET_FACING & ~TRIGGERED_IGNORE_AURA_INTERRUPT_FLAGS & ~TRIGGERED_IGNORE_CAST_ITEM & ~TRIGGERED_IGNORE_GCD)); // Player cast back 45626 on npc
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_arcane_chains_character_force_cast_SpellScript::HandleScriptEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleScriptEffect(SpellEffIndex /* effIndex */)
     {
-        return new spell_arcane_chains_character_force_cast_SpellScript();
+        GetHitUnit()->CastSpell(GetCaster(), SPELL_ARCANE_CHAINS_SUMMON_CHAINED_MAGE_HUNTER, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_SET_FACING & ~TRIGGERED_IGNORE_AURA_INTERRUPT_FLAGS & ~TRIGGERED_IGNORE_CAST_ITEM & ~TRIGGERED_IGNORE_GCD)); // Player cast back 45626 on npc
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_arcane_chains_character_force_cast::HandleScriptEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
@@ -758,7 +838,7 @@ public:
 
         void SpellHit(Unit* unit, SpellInfo const* spell) override
         {
-            if (spell->Id == SPELL_NEURAL_NEEDLE && unit->GetTypeId() == TYPEID_PLAYER)
+            if (spell->Id == SPELL_NEURAL_NEEDLE && unit->IsPlayer())
             {
                 if (Player* player = unit->ToPlayer())
                 {
@@ -1309,31 +1389,20 @@ enum BloodsporeRuination
     EVENT_RESET_ORIENTATION
 };
 
-class spell_q11719_bloodspore_ruination_45997 : public SpellScriptLoader
+class spell_q11719_bloodspore_ruination_45997 : public SpellScript
 {
-public:
-    spell_q11719_bloodspore_ruination_45997() : SpellScriptLoader("spell_q11719_bloodspore_ruination_45997") { }
+    PrepareSpellScript(spell_q11719_bloodspore_ruination_45997);
 
-    class spell_q11719_bloodspore_ruination_45997_SpellScript : public SpellScript
+    void HandleEffect(SpellEffIndex /*effIndex*/)
     {
-        PrepareSpellScript(spell_q11719_bloodspore_ruination_45997_SpellScript);
+        if (Unit* caster = GetCaster())
+            if (Creature* laurith = caster->FindNearestCreature(NPC_BLOODMAGE_LAURITH, 100.0f))
+                laurith->AI()->SetGUID(caster->GetGUID());
+    }
 
-        void HandleEffect(SpellEffIndex /*effIndex*/)
-        {
-            if (Unit* caster = GetCaster())
-                if (Creature* laurith = caster->FindNearestCreature(NPC_BLOODMAGE_LAURITH, 100.0f))
-                    laurith->AI()->SetGUID(caster->GetGUID());
-        }
-
-        void Register() override
-        {
-            OnEffectHit += SpellEffectFn(spell_q11719_bloodspore_ruination_45997_SpellScript::HandleEffect, EFFECT_1, SPELL_EFFECT_SEND_EVENT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void Register() override
     {
-        return new spell_q11719_bloodspore_ruination_45997_SpellScript();
+        OnEffectHit += SpellEffectFn(spell_q11719_bloodspore_ruination_45997::HandleEffect, EFFECT_1, SPELL_EFFECT_SEND_EVENT);
     }
 };
 
@@ -1973,7 +2042,6 @@ public:
 // NPC 25301: Counselor Talbot
 enum CounselorTalbot
 {
-    AREA_LAST_RITES     = 4128,
     SPELL_DEFLECTION    = 51009,
     SPELL_SOUL_BLAST    = 50992,
     SPELL_VAMPIRIC_BOLT = 51016,
@@ -2007,7 +2075,7 @@ public:
                 return;
             }
 
-            if (me->GetAreaId() == AREA_LAST_RITES)
+            if (me->GetAreaId() == AREA_NAXXANAR)
             {
                 _events.Update(diff);
 
@@ -2056,16 +2124,60 @@ public:
     }
 };
 
+// 45612 - Necropolis Beam
+class spell_necropolis_beam: public SpellScript
+{
+    PrepareSpellScript(spell_necropolis_beam);
+
+    void SetDest(SpellDestination& dest)
+    {
+        Unit* caster = GetCaster();
+        float floorZ = caster->GetMapHeight(caster->GetPositionX(), caster->GetPositionY(), caster->GetPositionZ());
+        if (floorZ > INVALID_HEIGHT)
+            dest._position.m_positionZ = floorZ;
+    }
+
+    void Register() override
+    {
+        OnDestinationTargetSelect += SpellDestinationTargetSelectFn(spell_necropolis_beam::SetDest, EFFECT_0, TARGET_DEST_CASTER);
+    }
+};
+
+enum SoulDeflectionSpells
+{
+    SPELL_SOUL_DEFLECTION_DAMAGE = 51011
+};
+
+class spell_soul_deflection : public AuraScript
+{
+    PrepareAuraScript(spell_soul_deflection);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_SOUL_DEFLECTION_DAMAGE });
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& eventInfo)
+    {
+        if (!eventInfo.GetDamageInfo() || !eventInfo.GetDamageInfo()->GetDamage() || !GetTarget())
+            return;
+
+        GetCaster()->CastCustomSpell(SPELL_SOUL_DEFLECTION_DAMAGE, SPELLVALUE_BASE_POINT0, eventInfo.GetDamageInfo()->GetDamage(), GetTarget(), true);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_soul_deflection::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
 void AddSC_borean_tundra()
 {
-    // Ours
-    new spell_q11919_q11940_drake_hunt();
+    RegisterSpellScript(spell_q11919_q11940_drake_hunt_aura);
     new npc_thassarian();
     new npc_thassarian2();
     new npc_leryssa();
     new npc_counselor_talbot();
-
-    // Theirs
     new npc_sinkhole_kill_credit();
     new npc_khunok_the_behemoth();
     new npc_iruk();
@@ -2073,14 +2185,16 @@ void AddSC_borean_tundra()
     new npc_lurgglbr();
     new npc_beryl_sorcerer();
     new npc_captured_beryl_sorcerer();
-    new spell_arcane_chains_character_force_cast();
+    RegisterSpellScript(spell_arcane_chains_character_force_cast);
     new npc_imprisoned_beryl_sorcerer();
     new npc_mootoo_the_younger();
     new npc_bonker_togglevolt();
     new npc_valiance_keep_cannoneer();
     new npc_warmage_coldarra();
     new npc_hidden_cultist();
-    new spell_q11719_bloodspore_ruination_45997();
+    RegisterSpellScript(spell_q11719_bloodspore_ruination_45997);
     new npc_bloodmage_laurith();
+    RegisterCreatureAI(npc_jenny);
+    RegisterSpellScript(spell_necropolis_beam);
+    RegisterSpellScript(spell_soul_deflection);
 }
-

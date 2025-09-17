@@ -19,8 +19,6 @@
 #define DEF_OCULUS_H
 
 #include "CreatureAIImpl.h"
-#include "SpellAuraEffects.h"
-#include "SpellAuras.h"
 #include "SpellScript.h"
 
 #define DataHeader "OC"
@@ -97,12 +95,6 @@ enum AchievData
     CRITERIA_AMBER_VOID                 = 7325,
     CRITERIA_EMERALD_VOID               = 7324,
     CRITERIA_RUBY_VOID                  = 7323,
-};
-
-enum OculusWorldStates
-{
-    WORLD_STATE_CENTRIFUGE_CONSTRUCT_SHOW   = 3524,
-    WORLD_STATE_CENTRIFUGE_CONSTRUCT_AMOUNT = 3486
 };
 
 enum MISC

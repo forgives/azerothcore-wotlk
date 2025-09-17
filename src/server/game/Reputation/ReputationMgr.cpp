@@ -184,7 +184,7 @@ void ReputationMgr::SendState(FactionState const* faction)
     data << uint8(_sendFactionIncreased);
     _sendFactionIncreased = false; // Reset
 
-    size_t p_count = data.wpos();
+    std::size_t p_count = data.wpos();
     data << uint32(count);
 
     data << uint32(faction->ReputationListID);
@@ -431,6 +431,9 @@ bool ReputationMgr::SetOneFactionReputation(FactionEntry const* factionEntry, fl
 
             if (new_rank <= REP_HOSTILE)
                 SetAtWar(&itr->second, true);
+
+            if (old_rank == REP_HOSTILE && new_rank >= REP_UNFRIENDLY && factionEntry->CanBeSetAtWar())
+                SetAtWar(&itr->second, false);
 
             if (new_rank > old_rank)
                 _sendFactionIncreased = true;

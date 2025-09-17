@@ -21,17 +21,9 @@
 #include "Chat.h"
 #include "Creature.h"
 #include "CreatureScript.h"
-#include "InstanceScript.h"
-#include "Map.h"
-#include "PassiveAI.h"
 #include "Player.h"
 #include "ScriptedCreature.h"
-#include "ScriptedGossip.h"
-#include "SpellAuraEffects.h"
-#include "SpellAuras.h"
-#include "SpellMgr.h"
 #include "SpellScript.h"
-#include "SpellScriptLoader.h"
 
 #define DataHeader "IC"
 
@@ -137,6 +129,8 @@ enum DataTypes
     DATA_ARTHAS_PLATFORM            = 38,
     DATA_TERENAS_MENETHIL           = 39,
     DATA_ENEMY_GUNSHIP              = 40,
+    DATA_THE_SKYBREAKER             = 41,
+    DATA_ORGRIMS_HAMMER             = 42,
 
     // pussywizard:
     DATA_BUFF_AVAILABLE             = 251,
@@ -563,15 +557,6 @@ enum QuestsICC
     QUEST_A_FEAST_OF_SOULS                  = 24547
 };
 
-enum WorldStatesICC
-{
-    WORLDSTATE_SHOW_TIMER           = 4903,
-    WORLDSTATE_EXECUTION_TIME       = 4904,
-    WORLDSTATE_SHOW_ATTEMPTS        = 4940,
-    WORLDSTATE_ATTEMPTS_REMAINING   = 4941,
-    WORLDSTATE_ATTEMPTS_MAX         = 4942,
-};
-
 enum PutricideEventFlags
 {
     PUTRICIDE_EVENT_FLAG_FESTERGUT_VALVE    = 1,
@@ -580,50 +565,31 @@ enum PutricideEventFlags
     PUTRICIDE_EVENT_FLAG_TRAP_FINISHED      = 8,
 };
 
-enum AreaIds
-{
-    AREA_ICECROWN_CITADEL   = 4812,
-    AREA_THE_FROZEN_THRONE  = 4859,
-};
-
 enum ItemIds
 {
     ITEM_GOBLIN_ROCKET_PACK = 49278
 };
 
-class spell_trigger_spell_from_caster : public SpellScriptLoader
+class spell_trigger_spell_from_caster : public SpellScript
 {
+    PrepareSpellScript(spell_trigger_spell_from_caster);
+
 public:
-    spell_trigger_spell_from_caster(char const* scriptName, uint32 triggerId) : SpellScriptLoader(scriptName), _triggerId(triggerId) { }
+    spell_trigger_spell_from_caster(uint32 triggerId) : SpellScript(), _triggerId(triggerId) { }
 
-    class spell_trigger_spell_from_caster_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spell*/) override
     {
-        PrepareSpellScript(spell_trigger_spell_from_caster_SpellScript);
+        return ValidateSpellInfo({ _triggerId });
+    }
 
-    public:
-        spell_trigger_spell_from_caster_SpellScript(uint32 triggerId) : SpellScript(), _triggerId(triggerId) { }
-
-        bool Validate(SpellInfo const* /*spell*/) override
-        {
-            return ValidateSpellInfo({ _triggerId });
-        }
-
-        void HandleTrigger()
-        {
-            GetCaster()->CastSpell(GetHitUnit(), _triggerId, true);
-        }
-
-        void Register() override
-        {
-            AfterHit += SpellHitFn(spell_trigger_spell_from_caster_SpellScript::HandleTrigger);
-        }
-
-        uint32 _triggerId;
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleTrigger()
     {
-        return new spell_trigger_spell_from_caster_SpellScript(_triggerId);
+        GetCaster()->CastSpell(GetHitUnit(), _triggerId, true);
+    }
+
+    void Register() override
+    {
+        AfterHit += SpellHitFn(spell_trigger_spell_from_caster::HandleTrigger);
     }
 
 private:

@@ -28,7 +28,7 @@ ObjectData const creatureData[] =
 class instance_onyxias_lair : public InstanceMapScript
 {
 public:
-    instance_onyxias_lair() : InstanceMapScript("instance_onyxias_lair", 249) { }
+    instance_onyxias_lair() : InstanceMapScript("instance_onyxias_lair", MAP_ONYXIAS_LAIR) { }
 
     InstanceScript* GetInstanceScript(InstanceMap* pMap) const override
     {
@@ -97,7 +97,7 @@ public:
 
         bool CheckAchievementCriteriaMeet(uint32 criteria_id, Player const*  /*source*/, Unit const*  /*target*/, uint32  /*miscvalue1*/) override
         {
-            switch(criteria_id)
+            switch (criteria_id)
             {
                 case ACHIEV_CRITERIA_MANY_WHELPS_10_PLAYER:
                 case ACHIEV_CRITERIA_MANY_WHELPS_25_PLAYER:

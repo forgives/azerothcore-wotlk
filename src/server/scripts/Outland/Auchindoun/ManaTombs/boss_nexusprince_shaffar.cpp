@@ -66,18 +66,12 @@ struct boss_nexusprince_shaffar : public BossAI
     void Reset() override
     {
         _Reset();
-        float dist = 8.0f;
-        float posX, posY, posZ, angle;
-        me->GetHomePosition(posX, posY, posZ, angle);
         summons.DespawnAll();
-        me->SummonCreature(NPC_BEACON, posX - dist, posY - dist, posZ, angle, TEMPSUMMON_CORPSE_TIMED_DESPAWN, 7200000);
-        me->SummonCreature(NPC_BEACON, posX - dist, posY + dist, posZ, angle, TEMPSUMMON_CORPSE_TIMED_DESPAWN, 7200000);
-        me->SummonCreature(NPC_BEACON, posX + dist, posY, posZ, angle, TEMPSUMMON_CORPSE_TIMED_DESPAWN, 7200000);
     }
 
     void MoveInLineOfSight(Unit* who) override
     {
-        if (!HasTaunted && who->GetTypeId() == TYPEID_PLAYER && me->IsWithinDistInMap(who, 100.0f))
+        if (!HasTaunted && who->IsPlayer() && me->IsWithinDistInMap(who, 100.0f))
         {
             HasTaunted = true;
             Talk(SAY_INTRO);
@@ -133,7 +127,7 @@ struct boss_nexusprince_shaffar : public BossAI
 
     void KilledUnit(Unit* victim) override
     {
-        if (victim->GetTypeId() == TYPEID_PLAYER)
+        if (victim->IsPlayer())
         {
             Talk(SAY_SLAY);
         }

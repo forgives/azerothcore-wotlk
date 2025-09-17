@@ -21,6 +21,7 @@
 #include "SpellScript.h"
 #include "SpellScriptLoader.h"
 #include "gruuls_lair.h"
+#include "SpellAuraEffects.h"
 
 enum Yells
 {
@@ -94,7 +95,7 @@ struct boss_gruul : public BossAI
             context.Repeat(39900ms, 55700ms);
         }).Schedule(5600ms, [this](TaskContext context)
         {
-            if (Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 1, 5.0f))
+            if (Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 0, 5.0f, false, false))
             {
                 DoCast(target, SPELL_HURTFUL_STRIKE);
             }
@@ -314,4 +315,3 @@ void AddSC_boss_gruul()
     RegisterSpellScript(spell_gruul_shatter);
     RegisterSpellScript(spell_gruul_shatter_effect);
 }
-

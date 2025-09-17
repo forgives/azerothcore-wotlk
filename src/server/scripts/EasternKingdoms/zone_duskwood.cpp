@@ -75,7 +75,7 @@ struct boss_twilight_corrupter : public ScriptedAI
 
     void MoveInLineOfSight(Unit* who) override
     {
-        if (!_introSpoken && who->GetTypeId() == TYPEID_PLAYER)
+        if (!_introSpoken && who->IsPlayer())
         {
             _introSpoken = true;
             Talk(SAY_RESPAWN, who);
@@ -90,7 +90,7 @@ struct boss_twilight_corrupter : public ScriptedAI
         _scheduler
             .Schedule(12s, 18s, [this](TaskContext context)
             {
-                DoCastRandomTarget(SPELL_CREATURE_OF_NIGHTMARE, 1, 100.f);
+                DoCastRandomTarget(SPELL_CREATURE_OF_NIGHTMARE, 0, 100.f, true, false, false);
                 context.Repeat(35s, 45s);
             })
             .Schedule(9s, 16s, [this](TaskContext context)
@@ -102,7 +102,7 @@ struct boss_twilight_corrupter : public ScriptedAI
 
     void KilledUnit(Unit* victim) override
     {
-        if (victim->GetTypeId() == TYPEID_PLAYER)
+        if (victim->IsPlayer())
         {
             Talk(SAY_KILL, victim);
             DoCastSelf(SPELL_SWELL_OF_SOULS);

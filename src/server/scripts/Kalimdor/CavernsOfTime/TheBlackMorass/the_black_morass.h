@@ -19,8 +19,6 @@
 #define DEF_THEBLACKMORASS_H
 
 #include "CreatureAIImpl.h"
-#include "PassiveAI.h"
-#include "SpellScript.h"
 
 #define DataHeader "TBM"
 
@@ -40,13 +38,6 @@ enum DataTypes
     DATA_DAMAGE_SHIELD                  = 12,
     DATA_SHIELD_PERCENT                 = 13,
     DATA_RIFT_NUMBER                    = 14
-};
-
-enum WorldStateIds
-{
-    WORLD_STATE_BM                      = 2541,
-    WORLD_STATE_BM_SHIELD               = 2540,
-    WORLD_STATE_BM_RIFT                 = 2784
 };
 
 enum EventStatus

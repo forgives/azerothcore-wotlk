@@ -15,14 +15,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-Name: arena_commandscript
-%Complete: 100
-Comment: All arena team related commands
-Category: commandscripts
-EndScriptData */
-
 #include "ArenaTeamMgr.h"
+#include "ArenaSeasonMgr.h"
+#include "ArenaTeamFilter.h"
 #include "Chat.h"
 #include "CommandScript.h"
 #include "Player.h"
@@ -36,6 +31,19 @@ public:
 
     ChatCommandTable GetCommands() const override
     {
+        static ChatCommandTable arenaSeasonSetCommandTable =
+        {
+            { "state",          HandleArenaSeasonSetStateCommand, SEC_ADMINISTRATOR, Console::Yes }
+        };
+
+        static ChatCommandTable arenaSeasonCommandTable =
+        {
+            { "reward",         HandleArenaSeasonRewardCommand,      SEC_ADMINISTRATOR, Console::Yes },
+            { "deleteteams",    HandleArenaSeasonDeleteTeamsCommand, SEC_ADMINISTRATOR, Console::Yes },
+            { "start",          HandleArenaSeasonStartCommand,       SEC_ADMINISTRATOR, Console::Yes },
+            { "set",            arenaSeasonSetCommandTable }
+        };
+
         static ChatCommandTable arenaCommandTable =
         {
             { "create",         HandleArenaCreateCommand,   SEC_ADMINISTRATOR, Console::Yes },
@@ -44,6 +52,7 @@ public:
             { "captain",        HandleArenaCaptainCommand,  SEC_ADMINISTRATOR, Console::No  },
             { "info",           HandleArenaInfoCommand,     SEC_GAMEMASTER,    Console::Yes },
             { "lookup",         HandleArenaLookupCommand,   SEC_GAMEMASTER,    Console::No  },
+            { "season",         arenaSeasonCommandTable  }
         };
 
         static ChatCommandTable commandTable =
@@ -58,7 +67,7 @@ public:
     {
         if (sArenaTeamMgr->GetArenaTeamByName(name))
         {
-            handler->SendErrorMessage(LANG_ARENA_ERROR_NAME_EXISTS, name.c_str());
+            handler->SendErrorMessage(LANG_ARENA_ERROR_NAME_EXISTS, name);
             return false;
         }
 
@@ -70,7 +79,7 @@ public:
 
         if (Player::GetArenaTeamIdFromDB(captain->GetGUID(), type) != 0)
         {
-            handler->SendErrorMessage(LANG_ARENA_ERROR_SIZE, captain->GetName().c_str());
+            handler->SendErrorMessage(LANG_ARENA_ERROR_SIZE, captain->GetName());
             return false;
         }
 
@@ -84,7 +93,7 @@ public:
         }
 
         sArenaTeamMgr->AddArenaTeam(arena);
-        handler->PSendSysMessage(LANG_ARENA_CREATE, arena->GetName().c_str(), arena->GetId(), arena->GetType(), arena->GetCaptain().GetCounter());
+        handler->PSendSysMessage(LANG_ARENA_CREATE, arena->GetName(), arena->GetId(), arena->GetType(), arena->GetCaptain().ToString());
 
         return true;
     }
@@ -110,7 +119,7 @@ public:
 
         delete(arena);
 
-        handler->PSendSysMessage(LANG_ARENA_DISBAND, name.c_str(), teamId);
+        handler->PSendSysMessage(LANG_ARENA_DISBAND, name, teamId);
         return true;
     }
 
@@ -119,13 +128,13 @@ public:
         ArenaTeam* arena = sArenaTeamMgr->GetArenaTeamByName(oldName);
         if (!arena)
         {
-            handler->SendErrorMessage(LANG_ARENA_ERROR_NAME_NOT_FOUND, oldName.c_str());
+            handler->SendErrorMessage(LANG_ARENA_ERROR_NAME_NOT_FOUND, oldName);
             return false;
         }
 
         if (sArenaTeamMgr->GetArenaTeamByName(newName))
         {
-            handler->SendErrorMessage(LANG_ARENA_ERROR_NAME_EXISTS, oldName.c_str());
+            handler->SendErrorMessage(LANG_ARENA_ERROR_NAME_EXISTS, oldName);
             return false;
         }
 
@@ -141,7 +150,7 @@ public:
             return false;
         }
 
-        handler->PSendSysMessage(LANG_ARENA_RENAME, arena->GetId(), oldName.c_str(), newName.c_str());
+        handler->PSendSysMessage(LANG_ARENA_RENAME, arena->GetId(), oldName, newName);
 
         return true;
     }
@@ -169,13 +178,13 @@ public:
 
         if (!arena->IsMember(target->GetGUID()))
         {
-            handler->SendErrorMessage(LANG_ARENA_ERROR_NOT_MEMBER, target->GetName().c_str(), arena->GetName().c_str());
+            handler->SendErrorMessage(LANG_ARENA_ERROR_NOT_MEMBER, target->GetName(), arena->GetName());
             return false;
         }
 
         if (arena->GetCaptain() == target->GetGUID())
         {
-            handler->SendErrorMessage(LANG_ARENA_ERROR_CAPTAIN, target->GetName().c_str(), arena->GetName().c_str());
+            handler->SendErrorMessage(LANG_ARENA_ERROR_CAPTAIN, target->GetName(), arena->GetName());
             return false;
         }
 
@@ -183,7 +192,7 @@ public:
         sCharacterCache->GetCharacterNameByGuid(arena->GetCaptain(), oldCaptainName);
         arena->SetCaptain(target->GetGUID());
 
-        handler->PSendSysMessage(LANG_ARENA_CAPTAIN, arena->GetName().c_str(), arena->GetId(), oldCaptainName.c_str(), target->GetName().c_str());
+        handler->PSendSysMessage(LANG_ARENA_CAPTAIN, arena->GetName(), arena->GetId(), oldCaptainName, target->GetName());
 
         return true;
     }
@@ -197,10 +206,10 @@ public:
             return false;
         }
 
-        handler->PSendSysMessage(LANG_ARENA_INFO_HEADER, arena->GetName().c_str(), arena->GetId(), arena->GetRating(), arena->GetType(), arena->GetType());
+        handler->PSendSysMessage(LANG_ARENA_INFO_HEADER, arena->GetName(), arena->GetId(), arena->GetRating(), arena->GetType(), arena->GetType());
 
         for (auto const& itr : arena->GetMembers())
-            handler->PSendSysMessage(LANG_ARENA_INFO_MEMBERS, itr.Name.c_str(), itr.Guid.GetCounter(), itr.PersonalRating, (arena->GetCaptain() == itr.Guid ? "- Captain" : ""));
+            handler->PSendSysMessage(LANG_ARENA_INFO_MEMBERS, itr.Name, itr.Guid.ToString(), itr.PersonalRating, (arena->GetCaptain() == itr.Guid ? "- Captain" : ""));
 
         return true;
     }
@@ -217,7 +226,7 @@ public:
             {
                 if (handler->GetSession())
                 {
-                    handler->PSendSysMessage(LANG_ARENA_LOOKUP, team->GetName().c_str(), team->GetId(), team->GetType(), team->GetType());
+                    handler->PSendSysMessage(LANG_ARENA_LOOKUP, team->GetName(), team->GetId(), team->GetType(), team->GetType());
                     found = true;
                     continue;
                 }
@@ -225,10 +234,84 @@ public:
         }
 
         if (!found)
-            handler->PSendSysMessage(LANG_ARENA_ERROR_NAME_NOT_FOUND, std::string(needle).c_str());
+            handler->PSendSysMessage(LANG_ARENA_ERROR_NAME_NOT_FOUND, std::string(needle));
 
         return true;
     }
+
+    static bool HandleArenaSeasonRewardCommand(ChatHandler* handler, std::string teamsFilterStr)
+    {
+        std::unique_ptr<ArenaTeamFilter> uniqueFilter = ArenaTeamFilterFactoryByUserInput().CreateFilterByUserInput(teamsFilterStr);
+        if (!uniqueFilter)
+        {
+            handler->PSendSysMessage("Invalid filter. Please check your input.");
+            return false;
+        }
+
+        std::shared_ptr<ArenaTeamFilter> sharedFilter = std::move(uniqueFilter);
+
+        if (!sArenaSeasonMgr->CanDeleteArenaTeams())
+        {
+            handler->PSendSysMessage("Cannot proceed. Make sure there are no active arenas and that rewards exist for the current season.");
+            handler->PSendSysMessage("Hint: You can disable the arena queue using the following command: .arena season set state 0");
+            return false;
+        }
+
+        handler->PSendSysMessage("Distributing rewards for arena teams (types: "+teamsFilterStr+")...");
+        sArenaSeasonMgr->RewardTeamsForTheSeason(sharedFilter);
+        handler->PSendSysMessage("Rewards distributed.");
+        return true;
+    }
+
+    static bool HandleArenaSeasonDeleteTeamsCommand(ChatHandler* handler)
+    {
+        handler->PSendSysMessage("Deleting arena teams...");
+        sArenaSeasonMgr->DeleteArenaTeams();
+        handler->PSendSysMessage("Arena teams deleted.");
+        return true;
+    }
+
+    static bool HandleArenaSeasonStartCommand(ChatHandler* handler, uint8 seasonId)
+    {
+        if (seasonId == sArenaSeasonMgr->GetCurrentSeason())
+        {
+            sArenaSeasonMgr->SetSeasonState(ARENA_SEASON_STATE_IN_PROGRESS);
+            handler->PSendSysMessage("Arena season updated.");
+            return true;
+        }
+
+        const uint8 maxSeasonId = 8;
+        if (seasonId > maxSeasonId)
+        {
+            handler->PSendSysMessage("Invalid season id.");
+            return false;
+        }
+
+        sArenaSeasonMgr->ChangeCurrentSeason(seasonId);
+        handler->PSendSysMessage("Arena season changed to season {}.", seasonId);
+        return true;
+    }
+
+    static bool HandleArenaSeasonSetStateCommand(ChatHandler* handler, uint8 state)
+    {
+        ArenaSeasonState seasonState;
+        switch (state) {
+            case ARENA_SEASON_STATE_DISABLED:
+                seasonState = ARENA_SEASON_STATE_DISABLED;
+                break;
+            case ARENA_SEASON_STATE_IN_PROGRESS:
+                seasonState = ARENA_SEASON_STATE_IN_PROGRESS;
+                break;
+            default:
+                handler->PSendSysMessage("Invalid state.");
+                return false;
+        }
+
+        sArenaSeasonMgr->SetSeasonState(seasonState);
+        handler->PSendSysMessage("Arena season updated.");
+        return true;
+    }
+
 };
 
 void AddSC_arena_commandscript()

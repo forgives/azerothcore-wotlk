@@ -187,16 +187,20 @@ enum ThorimEvents
     EVENT_THORIM_CHARGE_ORB                 = 3,
     EVENT_THORIM_LIGHTNING_ORB              = 4,
     EVENT_THORIM_NOT_REACH_IN_TIME          = 5,
-    EVENT_THORIM_FILL_ARENA                 = 6,
-    EVENT_THORIM_UNBALANCING_STRIKE         = 7,
-    EVENT_THORIM_LIGHTNING_CHARGE           = 8,
-    EVENT_THORIM_CHAIN_LIGHTNING            = 9,
-    EVENT_THORIM_BERSERK                    = 10,
-    EVENT_THORIM_AGGRO                      = 11,
-    EVENT_THORIM_AGGRO2                     = 12,
-    EVENT_THORIM_OUTRO1                     = 13,
-    EVENT_THORIM_OUTRO2                     = 14,
-    EVENT_THORIM_OUTRO3                     = 15,
+    EVENT_THORIM_ARENA_SPAWN_WARBRINGER     = 6,
+    EVENT_THORIM_ARENA_SPAWN_EVOKER         = 7,
+    EVENT_THORIM_ARENA_SPAWN_COMMONER       = 8,
+    EVENT_THORIM_ARENA_SPAWN_CHAMPION       = 9,
+    EVENT_THORIM_UNBALANCING_STRIKE         = 10,
+    EVENT_THORIM_LIGHTNING_CHARGE           = 11,
+    EVENT_THORIM_CHAIN_LIGHTNING            = 12,
+    EVENT_THORIM_BERSERK                    = 13,
+    EVENT_THORIM_AGGRO                      = 14,
+    EVENT_THORIM_AGGRO2                     = 15,
+    EVENT_THORIM_OUTRO1                     = 16,
+    EVENT_THORIM_OUTRO2                     = 17,
+    EVENT_THORIM_OUTRO3                     = 18,
+    EVENT_THORIM_OUTRO4                     = 19,
 
     EVENT_DR_ACOLYTE_GH                     = 20,
     EVENT_DR_ACOLYTE_HS                     = 21,
@@ -321,8 +325,6 @@ enum Misc
 };
 
 const Position Middle = {2134.68f, -263.13f, 419.44f, M_PI * 1.5f};
-
-const uint32 RollTable[3] = { 32877, 32878, 32876 };
 
 class boss_thorim : public CreatureScript
 {
@@ -509,7 +511,7 @@ public:
 
         void KilledUnit(Unit* victim) override
         {
-            if (victim->GetTypeId() == TYPEID_PLAYER)
+            if (victim->IsPlayer())
                 Talk(SAY_SLAY);
         }
 
@@ -527,7 +529,7 @@ public:
 
         void DamageTaken(Unit* who, uint32& damage, DamageEffectType, SpellSchoolMask) override
         {
-            if (who && _isHitAllowed && who->GetPositionZ() > 430 && who->GetTypeId() == TYPEID_PLAYER)
+            if (who && _isHitAllowed && who->GetPositionZ() > 430 && who->IsPlayer())
             {
                 _isHitAllowed = false;
                 DisableThorim(false);
@@ -560,7 +562,7 @@ public:
                     me->AddThreat(player, 1000.0f);
             }
 
-            if (damage >= me->GetHealth())
+            if (damage >= me->GetHealth()|| me->GetHealth()<2)
             {
                 damage = 0;
                 if (!_encounterFinished)
@@ -603,22 +605,22 @@ public:
             }
         }
 
-        void SpawnArenaNPCs()
+        void SpawnAnArenaNPC(uint32 arenaNpc)
         {
             Creature* cr;
-            uint8 rnd;
-            if (_spawnCommoners || urand(0, 2))
-                _spawnCommoners = !_spawnCommoners;
+            uint8 rnd = urand(0,13);
+            if ((cr = me->SummonCreature(arenaNpc, ArenaNPCs[rnd], TEMPSUMMON_CORPSE_TIMED_DESPAWN, 5000)))
+                cr->GetMotionMaster()->MoveJump(
+                    Middle.GetPositionX() + urand(19, 24) * cos(Middle.GetAngle(cr)),
+                    Middle.GetPositionY() + urand(19, 24) * std::sin(Middle.GetAngle(cr)),
+                    Middle.GetPositionZ(), 20, 20);
+        }
 
-            for (uint8 i = 0; i < (_spawnCommoners ? 7 : 2); ++i)
-            {
-                rnd = urand(0, 13);
-                if ((cr = me->SummonCreature((_spawnCommoners ? NPC_DARK_RUNE_COMMONER : RollTable[urand(0, 2)]), ArenaNPCs[rnd], TEMPSUMMON_CORPSE_TIMED_DESPAWN, 5000)))
-                    cr->GetMotionMaster()->MoveJump(
-                        Middle.GetPositionX() + urand(19, 24) * cos(Middle.GetAngle(cr)),
-                        Middle.GetPositionY() + urand(19, 24) * std::sin(Middle.GetAngle(cr)),
-                        Middle.GetPositionZ(), 20, 20);
-            }
+        void SpawnCommoners()
+        {
+            uint8 rnd = urand(6,7);
+            for (uint8 i = 0; i < rnd; ++i)
+                SpawnAnArenaNPC(NPC_DARK_RUNE_COMMONER);
         }
 
         void SpellHit(Unit* caster, SpellInfo const* spellInfo) override
@@ -630,11 +632,16 @@ public:
                 me->CastSpell(me, SPELL_LIGHTNING_CHARGE_BUFF, true);
                 events.RescheduleEvent(EVENT_THORIM_LIGHTNING_CHARGE, 10s, 0, EVENT_PHASE_RING);
             }
+            else if (spellInfo->Id == SPELL_TELEPORT)
+            {
+                me->DespawnOrUnsummon();
+                m_pInstance->SetData(EVENT_KEEPER_TELEPORTED, DONE);
+            }
         }
 
         void SpellHitTarget(Unit* target, SpellInfo const* spellInfo) override
         {
-            if (spellInfo->Id == SPELL_LIGHTNING_CHARGE_DAMAGE && target->GetTypeId() == TYPEID_PLAYER)
+            if (spellInfo->Id == SPELL_LIGHTNING_CHARGE_DAMAGE && target->IsPlayer())
                 _hitByLightning = true;
         }
 
@@ -679,10 +686,12 @@ public:
                     {
                         events.ScheduleEvent(EVENT_THORIM_STORMHAMMER, 8s, 0, EVENT_PHASE_START);
                         events.ScheduleEvent(EVENT_THORIM_CHARGE_ORB, 14s, 0, EVENT_PHASE_START);
-                        events.ScheduleEvent(EVENT_THORIM_FILL_ARENA, 0ms, 0, EVENT_PHASE_START);
+                        events.ScheduleEvent(EVENT_THORIM_ARENA_SPAWN_WARBRINGER, 0ms, 0, EVENT_PHASE_START);
+                        events.ScheduleEvent(EVENT_THORIM_ARENA_SPAWN_EVOKER, 5s, 0, EVENT_PHASE_START);
+                        events.ScheduleEvent(EVENT_THORIM_ARENA_SPAWN_COMMONER, 7s, 0, EVENT_PHASE_START);
+                        events.ScheduleEvent(EVENT_THORIM_ARENA_SPAWN_CHAMPION, 10s, 0, EVENT_PHASE_START);
                         events.ScheduleEvent(EVENT_THORIM_LIGHTNING_ORB, 5s, 0, EVENT_PHASE_START); // checked every 5 secs if there are players on arena
                         events.ScheduleEvent(EVENT_THORIM_NOT_REACH_IN_TIME, 5min, 0, EVENT_PHASE_START);
-
                         EntryCheckPredicate pred(NPC_SIF);
                         summons.DoAction(ACTION_SIF_START_DOMINION, pred);
                         break;
@@ -718,9 +727,21 @@ public:
                     me->CastSpell(me, SPELL_BERSERK_FRIENDS, true);
                     me->SummonCreature(NPC_LIGHTNING_ORB, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ());
                     break;
-                case EVENT_THORIM_FILL_ARENA:
-                    SpawnArenaNPCs();
-                    events.Repeat(10s);
+                case EVENT_THORIM_ARENA_SPAWN_WARBRINGER:
+                    SpawnAnArenaNPC(NPC_DARK_RUNE_WARBRINGER);
+                    events.Repeat(15s);
+                    break;
+                case EVENT_THORIM_ARENA_SPAWN_EVOKER:
+                    SpawnAnArenaNPC(NPC_DARK_RUNE_EVOKER);
+                    events.Repeat(20s);
+                    break;
+                case EVENT_THORIM_ARENA_SPAWN_COMMONER:
+                    SpawnCommoners();
+                    events.Repeat(21s);
+                    break;
+                case EVENT_THORIM_ARENA_SPAWN_CHAMPION:
+                    SpawnAnArenaNPC(NPC_DARK_RUNE_CHAMPION);
+                    events.Repeat(25s);
                     break;
                 case EVENT_THORIM_UNBALANCING_STRIKE:
                     me->CastSpell(me->GetVictim(), SPELL_UNBALANCING_STRIKE, false);
@@ -773,12 +794,13 @@ public:
                     {
                         Talk(SAY_END_NORMAL_3);
                     }
-
                     // Defeat credit
                     if (m_pInstance)
                         m_pInstance->SetData(TYPE_THORIM, DONE);
-
-                    me->DespawnOrUnsummon(8000);
+                    events.ScheduleEvent(EVENT_THORIM_OUTRO4, 14s, 0, 3);
+                    break;
+                case EVENT_THORIM_OUTRO4:
+                    DoCastSelf(SPELL_TELEPORT);
                     break;
             }
 
@@ -1104,7 +1126,7 @@ public:
 
         void DamageTaken(Unit* who, uint32&, DamageEffectType, SpellSchoolMask) override
         {
-            if (!_playerAttack && who && (who->GetTypeId() == TYPEID_PLAYER || who->GetOwnerGUID().IsPlayer()))
+            if (!_playerAttack && who && (who->IsPlayer() || who->GetOwnerGUID().IsPlayer()))
             {
                 if (me->GetInstanceScript())
                     if (Creature* thorim = ObjectAccessor::GetCreature(*me, me->GetInstanceScript()->GetGuidData(TYPE_THORIM)))
@@ -1409,14 +1431,14 @@ public:
 
         void RunRunicSmash(bool cast)
         {
-            if (Creature* cr = ObjectAccessor::GetCreature(*me, _leftHand ? _triggerLeftGUID[0] : _triggerRightGUID[0]) )
+            if (Creature* cr = ObjectAccessor::GetCreature(*me, _leftHand ? _triggerLeftGUID[0] : _triggerRightGUID[0]))
             {
                 if (cast)
                     cr->CastSpell(cr, SPELL_RUNIC_SMASH_DAMAGE, true);
                 cr->SetPosition(_leftHand ? 2235.0f : 2221.0f, _nextTriggerPos, cr->GetPositionZ(), 0.0f);
                 cr->StopMovingOnCurrentPos();
             }
-            if( Creature* cr = ObjectAccessor::GetCreature(*me, _leftHand ? _triggerLeftGUID[1] : _triggerRightGUID[1]) )
+            if (Creature* cr = ObjectAccessor::GetCreature(*me, _leftHand ? _triggerLeftGUID[1] : _triggerRightGUID[1]))
             {
                 if (cast)
                     cr->CastSpell(cr, SPELL_RUNIC_SMASH_DAMAGE, true);
@@ -1722,59 +1744,37 @@ public:
     }
 };
 
-class spell_thorim_lightning_pillar_P2 : public SpellScriptLoader
+class spell_thorim_lightning_pillar_P2_aura : public AuraScript
 {
-public:
-    spell_thorim_lightning_pillar_P2() : SpellScriptLoader("spell_thorim_lightning_pillar_P2") { }
+    PrepareAuraScript(spell_thorim_lightning_pillar_P2_aura);
 
-    class spell_thorim_lightning_pillar_P2_AuraScript : public AuraScript
+    void OnPeriodic(AuraEffect const* aurEff)
     {
-        PrepareAuraScript(spell_thorim_lightning_pillar_P2_AuraScript);
+        PreventDefaultAction();
+        if (Unit* caster = GetCaster())
+            GetUnitOwner()->CastSpell(caster, GetSpellInfo()->Effects[aurEff->GetEffIndex()].TriggerSpell, true);
+    }
 
-        void OnPeriodic(AuraEffect const* aurEff)
-        {
-            PreventDefaultAction();
-            if (Unit* caster = GetCaster())
-                GetUnitOwner()->CastSpell(caster, GetSpellInfo()->Effects[aurEff->GetEffIndex()].TriggerSpell, true);
-        }
-
-        void Register() override
-        {
-            OnEffectPeriodic += AuraEffectPeriodicFn(spell_thorim_lightning_pillar_P2_AuraScript::OnPeriodic, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    void Register() override
     {
-        return new spell_thorim_lightning_pillar_P2_AuraScript();
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_thorim_lightning_pillar_P2_aura::OnPeriodic, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
     }
 };
 
-class spell_thorim_trash_impale : public SpellScriptLoader
+class spell_thorim_trash_impale_aura : public AuraScript
 {
-public:
-    spell_thorim_trash_impale() : SpellScriptLoader("spell_thorim_trash_impale") { }
+    PrepareAuraScript(spell_thorim_trash_impale_aura);
 
-    class spell_thorim_trash_impale_AuraScript : public AuraScript
+    void OnPeriodic(AuraEffect const*  /*aurEff*/)
     {
-        PrepareAuraScript(spell_thorim_trash_impale_AuraScript);
+        // deals damage until target is healed above 90%
+        if (GetUnitOwner()->HealthAbovePct(90))
+            SetDuration(0);
+    }
 
-        void OnPeriodic(AuraEffect const*  /*aurEff*/)
-        {
-            // deals damage until target is healed above 90%
-            if (GetUnitOwner()->HealthAbovePct(90))
-                SetDuration(0);
-        }
-
-        void Register() override
-        {
-            OnEffectPeriodic += AuraEffectPeriodicFn(spell_thorim_trash_impale_AuraScript::OnPeriodic, EFFECT_0, SPELL_AURA_PERIODIC_DAMAGE);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    void Register() override
     {
-        return new spell_thorim_trash_impale_AuraScript();
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_thorim_trash_impale_aura::OnPeriodic, EFFECT_0, SPELL_AURA_PERIODIC_DAMAGE);
     }
 };
 
@@ -1831,8 +1831,8 @@ void AddSC_boss_thorim()
     new go_thorim_lever();
 
     // Spells
-    new spell_thorim_lightning_pillar_P2();
-    new spell_thorim_trash_impale();
+    RegisterSpellScript(spell_thorim_lightning_pillar_P2_aura);
+    RegisterSpellScript(spell_thorim_trash_impale_aura);
 
     // Achievements
     new achievement_thorim_stand_in_the_lightning();

@@ -20,7 +20,6 @@
 
 #include "CreatureAIImpl.h"
 #include "GridNotifiers.h"
-#include "SpellAuraEffects.h"
 
 #define DataHeader "TCR"
 
@@ -260,6 +259,7 @@ enum eTexts
 
     // Lord Jaraxxus
     SAY_STAGE_1_05            = 0,
+    SAY_STAGE_1_06_1          = 9,
 
     //  The Lich King
     SAY_STAGE_4_02            = 0,
@@ -377,12 +377,6 @@ enum eAchievementCriteria
     ACHIEV_CRITERIA_A_TRIBUTE_TO_IMMORTALITY_ALLIANCE       = 12359,
     ACHIEV_CRITERIA_A_TRIBUTE_TO_DEDICATED_INSANITY         = 12360,
     ACHIEV_CRITERIA_REALM_FIRST_GRAND_CRUSADER              = 12350,
-};
-
-enum euiWorldStates
-{
-    UPDATE_STATE_UI_SHOW                                    = 4390,
-    UPDATE_STATE_UI_COUNT                                   = 4389,
 };
 
 const uint32 dIIc = 405;

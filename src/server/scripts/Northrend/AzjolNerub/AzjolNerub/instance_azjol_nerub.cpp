@@ -21,10 +21,11 @@
 #include "ScriptedCreature.h"
 #include "SpellScriptLoader.h"
 #include "azjol_nerub.h"
+#include "SpellScript.h"
 
 DoorData const doorData[] =
 {
-    { GO_KRIKTHIR_DOORS,    DATA_KRIKTHIR_THE_GATEWATCHER_EVENT,    DOOR_TYPE_PASSAGE },
+    { GO_KRIKTHIR_DOORS,    DATA_KRIKTHIR,          DOOR_TYPE_PASSAGE },
     { GO_ANUBARAK_DOORS1,   DATA_ANUBARAK_EVENT,    DOOR_TYPE_ROOM },
     { GO_ANUBARAK_DOORS2,   DATA_ANUBARAK_EVENT,    DOOR_TYPE_ROOM },
     { GO_ANUBARAK_DOORS3,   DATA_ANUBARAK_EVENT,    DOOR_TYPE_ROOM },
@@ -33,22 +34,32 @@ DoorData const doorData[] =
 
 ObjectData const creatureData[] =
 {
-    { NPC_KRIKTHIR_THE_GATEWATCHER, DATA_KRIKTHIR_THE_GATEWATCHER_EVENT },
-    { NPC_HADRONOX,                 DATA_HADRONOX_EVENT                 },
-    { 0,                            0                                   }
+    { NPC_KRIKTHIR_THE_GATEWATCHER, DATA_KRIKTHIR },
+    { NPC_HADRONOX,                 DATA_HADRONOX },
+    { 0,                            0             }
+};
+
+ObjectData const summonData[] =
+{
+    { NPC_SKITTERING_SWARMER,    DATA_KRIKTHIR  },
+    { NPC_SKITTERING_INFECTIOR,  DATA_KRIKTHIR  },
+    { NPC_ANUB_AR_CHAMPION,      DATA_HADRONOX  },
+    { NPC_ANUB_AR_NECROMANCER,   DATA_HADRONOX  },
+    { NPC_ANUB_AR_CRYPTFIEND,    DATA_HADRONOX  },
+    { 0, 0 }
 };
 
 BossBoundaryData const boundaries =
 {
-    { DATA_KRIKTHIR_THE_GATEWATCHER_EVENT, new RectangleBoundary(400.0f, 580.0f, 623.5f, 810.0f) },
-    { DATA_HADRONOX_EVENT, new ZRangeBoundary(666.0f, 776.0f) },
+    { DATA_KRIKTHIR, new RectangleBoundary(400.0f, 580.0f, 623.5f, 810.0f) },
+    { DATA_HADRONOX, new ZRangeBoundary(666.0f, 776.0f) },
     { DATA_ANUBARAK_EVENT, new CircleBoundary(Position(550.6178f, 253.5917f), 26.0f) }
 };
 
 class instance_azjol_nerub : public InstanceMapScript
 {
 public:
-    instance_azjol_nerub() : InstanceMapScript("instance_azjol_nerub", 601) { }
+    instance_azjol_nerub() : InstanceMapScript("instance_azjol_nerub", MAP_AZJOL_NERUB) { }
 
     struct instance_azjol_nerub_InstanceScript : public InstanceScript
     {
@@ -59,52 +70,14 @@ public:
             LoadBossBoundaries(boundaries);
             LoadDoorData(doorData);
             LoadObjectData(creatureData, nullptr);
+            LoadSummonData(summonData);
         };
 
-        void OnCreatureCreate(Creature* creature) override
+        void OnCreatureEvade(Creature* creature) override
         {
-            switch (creature->GetEntry())
-            {
-                case NPC_SKITTERING_SWARMER:
-                case NPC_SKITTERING_INFECTIOR:
-                    if (Creature* krikthir = GetCreature((DATA_KRIKTHIR_THE_GATEWATCHER_EVENT)))
-                        krikthir->AI()->JustSummoned(creature);
-                    break;
-                case NPC_ANUB_AR_CHAMPION:
-                case NPC_ANUB_AR_NECROMANCER:
-                case NPC_ANUB_AR_CRYPTFIEND:
-                    if (Creature* hadronox = GetCreature(DATA_HADRONOX_EVENT))
-                        hadronox->AI()->JustSummoned(creature);
-                    break;
-            }
-
-            InstanceScript::OnCreatureCreate(creature);
-        }
-
-        void OnGameObjectCreate(GameObject* go) override
-        {
-            switch (go->GetEntry())
-            {
-                case GO_KRIKTHIR_DOORS:
-                case GO_ANUBARAK_DOORS1:
-                case GO_ANUBARAK_DOORS2:
-                case GO_ANUBARAK_DOORS3:
-                    AddDoor(go);
-                    break;
-            }
-        }
-
-        void OnGameObjectRemove(GameObject* go) override
-        {
-            switch (go->GetEntry())
-            {
-                case GO_KRIKTHIR_DOORS:
-                case GO_ANUBARAK_DOORS1:
-                case GO_ANUBARAK_DOORS2:
-                case GO_ANUBARAK_DOORS3:
-                    RemoveDoor(go);
-                    break;
-            }
+            if (creature->EntryEquals(NPC_WATCHER_NARJIL, NPC_WATCHER_GASHRA, NPC_WATCHER_SILTHIK))
+                if (Creature* krikthir = GetCreature(DATA_KRIKTHIR))
+                    krikthir->AI()->EnterEvadeMode();
         }
     };
 
@@ -114,65 +87,75 @@ public:
     }
 };
 
-class spell_azjol_nerub_fixate : public SpellScriptLoader
+class spell_azjol_nerub_fixate : public SpellScript
 {
-public:
-    spell_azjol_nerub_fixate() : SpellScriptLoader("spell_azjol_nerub_fixate") { }
+    PrepareSpellScript(spell_azjol_nerub_fixate);
 
-    class spell_azjol_nerub_fixate_SpellScript : public SpellScript
+    void HandleScriptEffect(SpellEffIndex effIndex)
     {
-        PrepareSpellScript(spell_azjol_nerub_fixate_SpellScript);
+        PreventHitDefaultEffect(effIndex);
+        if (Unit* target = GetHitUnit())
+            target->CastSpell(GetCaster(), GetEffectValue(), true);
+    }
 
-        void HandleScriptEffect(SpellEffIndex effIndex)
-        {
-            PreventHitDefaultEffect(effIndex);
-            if (Unit* target = GetHitUnit())
-                target->CastSpell(GetCaster(), GetEffectValue(), true);
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_azjol_nerub_fixate_SpellScript::HandleScriptEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void Register() override
     {
-        return new spell_azjol_nerub_fixate_SpellScript();
+        OnEffectHitTarget += SpellEffectFn(spell_azjol_nerub_fixate::HandleScriptEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
-class spell_azjol_nerub_web_wrap : public SpellScriptLoader
+class spell_azjol_nerub_web_wrap_aura : public AuraScript
 {
-public:
-    spell_azjol_nerub_web_wrap() : SpellScriptLoader("spell_azjol_nerub_web_wrap") { }
+    PrepareAuraScript(spell_azjol_nerub_web_wrap_aura);
 
-    class spell_azjol_nerub_web_wrap_AuraScript : public AuraScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareAuraScript(spell_azjol_nerub_web_wrap_AuraScript);
+        return ValidateSpellInfo({ SPELL_WEB_WRAP_TRIGGER });
+    }
 
-        void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            Unit* target = GetTarget();
-            if (!target->HasAura(SPELL_WEB_WRAP_TRIGGER))
-                target->CastSpell(target, SPELL_WEB_WRAP_TRIGGER, true);
-        }
-
-        void Register() override
-        {
-            OnEffectRemove += AuraEffectRemoveFn(spell_azjol_nerub_web_wrap_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_MOD_ROOT, AURA_EFFECT_HANDLE_REAL);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
+    void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
-        return new spell_azjol_nerub_web_wrap_AuraScript();
+        Unit* target = GetTarget();
+        if (!target->HasAura(SPELL_WEB_WRAP_TRIGGER))
+            target->CastSpell(target, SPELL_WEB_WRAP_TRIGGER, true);
+    }
+
+    void Register() override
+    {
+        OnEffectRemove += AuraEffectRemoveFn(spell_azjol_nerub_web_wrap_aura::OnRemove, EFFECT_0, SPELL_AURA_MOD_ROOT, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
+enum DrainPowerSpells
+{
+    SPELL_DRAIN_POWER_AURA = 54315
+};
+
+// 54314, 59354 - Drain Power
+class spell_azjol_drain_power : public SpellScript
+{
+    PrepareSpellScript(spell_azjol_drain_power);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_DRAIN_POWER_AURA });
+    }
+
+    void HandleScriptEffect(SpellEffIndex /*effIndex*/)
+    {
+        GetCaster()->CastSpell(GetCaster(), SPELL_DRAIN_POWER_AURA, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_azjol_drain_power::HandleScriptEffect, EFFECT_0, SPELL_EFFECT_APPLY_AURA);
     }
 };
 
 void AddSC_instance_azjol_nerub()
 {
     new instance_azjol_nerub();
-    new spell_azjol_nerub_fixate();
-    new spell_azjol_nerub_web_wrap();
+    RegisterSpellScript(spell_azjol_nerub_fixate);
+    RegisterSpellScript(spell_azjol_nerub_web_wrap_aura);
+    RegisterSpellScript(spell_azjol_drain_power);
 }

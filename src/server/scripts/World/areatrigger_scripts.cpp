@@ -16,53 +16,10 @@
  */
 
 #include "AreaTriggerScript.h"
-#include "CreatureScript.h"
 #include "GameTime.h"
 #include "Player.h"
 #include "ScriptedCreature.h"
-#include "SpellMgr.h"
-/* ScriptData
-SDName: Areatrigger_Scripts
-SD%Complete: 100
-SDComment: Scripts for areatriggers
-SDCategory: Areatrigger
-EndScriptData */
 
-/* ContentData
-at_coilfang_waterfall           4591
-at_legion_teleporter            4560 Teleporter TO Invasion Point: Cataclysm
-at_stormwright_shelf            q12741
-at_last_rites                   q12019
-at_sholazar_waygate             q12548
-at_nats_landing                 q11209
-at_bring_your_orphan_to         q910 q910 q1800 q1479 q1687 q1558 q10951 q10952
-at_brewfest
-at_area_52_entrance
-EndContentData */
-
-// Ours
-class AreaTrigger_at_voltarus_middle : public AreaTriggerScript
-{
-public:
-    AreaTrigger_at_voltarus_middle()
-        : AreaTriggerScript("at_voltarus_middle")
-    {
-    }
-
-    bool OnTrigger(Player* player, AreaTrigger const* /*trigger*/) override
-    {
-        if (player->IsAlive() && !player->IsInCombat())
-            if (player->HasItemCount(39319)) // Scepter of Domination
-            {
-                player->TeleportTo(571, 6242.67f, -1972.10f, 484.783f, 0.6f);
-                return true;
-            }
-
-        return false;
-    }
-};
-
-// Theirs
 /*######
 ## at_coilfang_waterfall
 ######*/
@@ -304,7 +261,7 @@ public:
 
         if (!player->FindNearestCreature(NPC_TERVOSH, 100.0f))
         {
-            if(Creature* tervosh = player->SummonCreature(NPC_TERVOSH, -3476.51f, -4105.94f, 17.1f, 5.3816f, TEMPSUMMON_TIMED_DESPAWN, 60000))
+            if (Creature* tervosh = player->SummonCreature(NPC_TERVOSH, -3476.51f, -4105.94f, 17.1f, 5.3816f, TEMPSUMMON_TIMED_DESPAWN, 60000))
                 tervosh->CastSpell(tervosh, SPELL_TELEPORT_VISUAL, true);
         }
 
@@ -438,10 +395,6 @@ private:
 
 void AddSC_areatrigger_scripts()
 {
-    // Ours
-    new AreaTrigger_at_voltarus_middle();
-
-    // Theirs
     new AreaTrigger_at_coilfang_waterfall();
     new AreaTrigger_at_legion_teleporter();
     new AreaTrigger_at_stormwright_shelf();
@@ -452,4 +405,3 @@ void AddSC_areatrigger_scripts()
     new AreaTrigger_at_brewfest();
     new AreaTrigger_at_area_52_entrance();
 }
-

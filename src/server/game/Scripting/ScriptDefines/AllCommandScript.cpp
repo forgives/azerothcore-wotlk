@@ -16,29 +16,32 @@
  */
 
 #include "AllCommandScript.h"
+#include "ChatCommand.h"
 #include "ScriptMgr.h"
 #include "ScriptMgrMacros.h"
 
 void ScriptMgr::OnHandleDevCommand(Player* player, bool& enable)
 {
-    ExecuteScript<AllCommandScript>([&](AllCommandScript* script)
-    {
-        script->OnHandleDevCommand(player, enable);
-    });
+    CALL_ENABLED_HOOKS(AllCommandScript, ALLCOMMANDHOOK_ON_HANDLE_DEV_COMMAND, script->OnHandleDevCommand(player, enable));
 }
 
-bool ScriptMgr::CanExecuteCommand(ChatHandler& handler, std::string_view cmdStr)
+bool ScriptMgr::OnTryExecuteCommand(ChatHandler& handler, std::string_view cmdStr)
 {
-    auto ret = IsValidBoolScript<AllCommandScript>([&](AllCommandScript* script)
-    {
-        return !script->CanExecuteCommand(handler, cmdStr);
-    });
-
-    return ReturnValidBool(ret);
+    CALL_ENABLED_BOOLEAN_HOOKS(AllCommandScript, ALLCOMMANDHOOK_ON_TRY_EXECUTE_COMMAND, !script->OnTryExecuteCommand(handler, cmdStr));
 }
 
-AllCommandScript::AllCommandScript(const char* name)
-    : ScriptObject(name)
+bool ScriptMgr::OnBeforeIsInvokerVisible(std::string name, Acore::Impl::ChatCommands::CommandPermissions permissions, ChatHandler const& who)
 {
-    ScriptRegistry<AllCommandScript>::AddScript(this);
+    CALL_ENABLED_BOOLEAN_HOOKS(AllCommandScript, ALLCOMMANDHOOK_ON_BEFORE_IS_INVOKER_VISIBLE, !script->OnBeforeIsInvokerVisible(name, permissions, who));
+}
+
+AllCommandScript::AllCommandScript(const char* name, std::vector<uint16> enabledHooks)
+    : ScriptObject(name, ALLCOMMANDHOOK_END)
+{
+    // If empty - enable all available hooks.
+    if (enabledHooks.empty())
+        for (uint16 i = 0; i < ALLCOMMANDHOOK_END; ++i)
+            enabledHooks.emplace_back(i);
+
+    ScriptRegistry<AllCommandScript>::AddScript(this, std::move(enabledHooks));
 }

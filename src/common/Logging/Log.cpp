@@ -29,6 +29,7 @@
 #include "Timer.h"
 #include "Tokenize.h"
 #include <chrono>
+#include <memory>
 
 Log::Log() : AppenderId(0), highestLogLevel(LOG_LEVEL_FATAL)
 {
@@ -39,7 +40,6 @@ Log::Log() : AppenderId(0), highestLogLevel(LOG_LEVEL_FATAL)
 
 Log::~Log()
 {
-    delete _strand;
     Close();
 }
 
@@ -73,7 +73,7 @@ void Log::CreateAppenderFromConfig(std::string const& appenderName)
 
     std::vector<std::string_view> tokens = Acore::Tokenize(options, ',', true);
 
-    size_t const size = tokens.size();
+    std::size_t const size = tokens.size();
     std::string name = appenderName.substr(9);
 
     if (size < 2)
@@ -265,7 +265,7 @@ Logger const* Log::GetLoggerByType(std::string const& type) const
     }
 
     std::string parentLogger = LOGGER_ROOT;
-    size_t found = type.find_last_of('.');
+    std::size_t found = type.find_last_of('.');
     if (found != std::string::npos)
     {
         parentLogger = type.substr(0, found);
@@ -369,7 +369,7 @@ void Log::Initialize(Acore::Asio::IoContext* ioContext)
     if (ioContext)
     {
         _ioContext = ioContext;
-        _strand = new Acore::Asio::Strand(*ioContext);
+        _strand = std::make_unique<Acore::Asio::Strand>(*ioContext);
     }
 
     LoadFromConfig();
@@ -377,8 +377,7 @@ void Log::Initialize(Acore::Asio::IoContext* ioContext)
 
 void Log::SetSynchronous()
 {
-    delete _strand;
-    _strand = nullptr;
+    _strand.reset();
     _ioContext = nullptr;
 }
 

@@ -15,7 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "CreatureScript.h"
 #include "InstanceMapScript.h"
 #include "InstanceScript.h"
 #include "blackfathom_deeps.h"
@@ -23,7 +22,7 @@
 class instance_blackfathom_deeps : public InstanceMapScript
 {
 public:
-    instance_blackfathom_deeps() : InstanceMapScript("instance_blackfathom_deeps", 48) { }
+    instance_blackfathom_deeps() : InstanceMapScript("instance_blackfathom_deeps", MAP_BLACKFATHOM_DEEPS) { }
 
     InstanceScript* GetInstanceScript(InstanceMap* map) const override
     {

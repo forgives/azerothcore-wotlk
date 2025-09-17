@@ -80,7 +80,7 @@ struct boss_doomwalker : public ScriptedAI
             context.Repeat(10s, 25s);
         }).Schedule(10s, 30s, [this](TaskContext context)
         {
-            DoCastRandomTarget(SPELL_CHAIN_LIGHTNING, 1);
+            DoCastRandomTarget(SPELL_CHAIN_LIGHTNING, 0, 0.0f, true, false, false);
             context.Repeat(7s, 27s);
         }).Schedule(25s, 35s, [this](TaskContext context)
         {
@@ -105,7 +105,7 @@ struct boss_doomwalker : public ScriptedAI
 
     void MoveInLineOfSight(Unit* who) override
     {
-        if (who && who->GetTypeId() == TYPEID_PLAYER && me->IsValidAttackTarget(who))
+        if (who && who->IsPlayer() && me->IsValidAttackTarget(who))
         {
             if (who->HasAura(SPELL_MARK_DEATH) && !who->HasAura(27827)) // Spirit of Redemption
             {

@@ -174,6 +174,23 @@ void Player::ApplySpellPowerBonus(int32 amount, bool apply)
         ApplyModInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, amount, apply);
 }
 
+void Player::ApplySpellDamageBonus(int32 amount, bool apply)
+{
+    apply = _ModifyUInt32(apply, m_baseSpellDamage, amount);
+
+    // For speed just update for client
+    for (int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; ++i)
+        ApplyModInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, amount, apply);
+}
+
+void Player::ApplySpellHealingBonus(int32 amount, bool apply)
+{
+    apply = _ModifyUInt32(apply, m_baseSpellHealing, amount);
+
+    // For speed just update for client
+    ApplyModUInt32Value(PLAYER_FIELD_MOD_HEALING_DONE_POS, amount, apply);
+}
+
 void Player::UpdateSpellDamageAndHealingBonus()
 {
     // Magic damage modifiers implemented in Unit::SpellDamageBonusDone
@@ -237,7 +254,7 @@ void Player::UpdateResistances(uint32 school)
         AuraEffectList const& mResbyIntellect = GetAuraEffectsByType(SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT);
         for(AuraEffectList::const_iterator i = mResbyIntellect.begin(); i != mResbyIntellect.end(); ++i)
         {
-            if((*i)->GetMiscValue() & (1 << (school - 1)) )
+            if ((*i)->GetMiscValue() & (1 << (school - 1)))
                 value += int32(GetStat(Stats((*i)->GetMiscValueB())) * (*i)->GetAmount() / 100.0f);
         }
 
@@ -302,7 +319,7 @@ void Player::UpdateMaxHealth()
     value += GetModifierValue(unitMod, TOTAL_VALUE) + GetHealthBonusFromStamina();
     value *= GetModifierValue(unitMod, TOTAL_PCT);
 
-    sScriptMgr->OnAfterUpdateMaxHealth(this, value);
+    sScriptMgr->OnPlayerAfterUpdateMaxHealth(this, value);
     SetMaxHealth((uint32)value);
 }
 
@@ -317,7 +334,7 @@ void Player::UpdateMaxPower(Powers power)
     value += GetModifierValue(unitMod, TOTAL_VALUE) +  bonusPower;
     value *= GetModifierValue(unitMod, TOTAL_PCT);
 
-    sScriptMgr->OnAfterUpdateMaxPower(this, power, value);
+    sScriptMgr->OnPlayerAfterUpdateMaxPower(this, power, value);
     SetMaxPower(power, uint32(value));
 }
 
@@ -332,7 +349,7 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
     float val2 = 0.0f;
     float level = float(GetLevel());
 
-    sScriptMgr->OnBeforeUpdateAttackPowerAndDamage(this, level, val2, ranged);
+    sScriptMgr->OnPlayerBeforeUpdateAttackPowerAndDamage(this, level, val2, ranged);
 
     UnitMods unitMod = ranged ? UNIT_MOD_ATTACK_POWER_RANGED : UNIT_MOD_ATTACK_POWER;
 
@@ -499,7 +516,7 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
 
     float attPowerMultiplier = GetModifierValue(unitMod, TOTAL_PCT) - 1.0f;
 
-    sScriptMgr->OnAfterUpdateAttackPowerAndDamage(this, level, base_attPower, attPowerMod, attPowerMultiplier, ranged);
+    sScriptMgr->OnPlayerAfterUpdateAttackPowerAndDamage(this, level, base_attPower, attPowerMod, attPowerMultiplier, ranged);
     SetInt32Value(index, (uint32)base_attPower);            //UNIT_FIELD_(RANGED)_ATTACK_POWER field
     SetInt32Value(index_mod, (uint32)attPowerMod);          //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field
     SetFloatValue(index_mult, attPowerMultiplier);          //UNIT_FIELD_(RANGED)_ATTACK_POWER_MULTIPLIER field
@@ -512,7 +529,7 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
     else
     {
         UpdateDamagePhysical(BASE_ATTACK);
-        if (CanDualWield() && haveOffhandWeapon())           //allow update offhand damage only if player knows DualWield Spec and has equipped offhand weapon
+        if (CanDualWield() && HasOffhandWeaponForAttack()) //allow update offhand damage only if player knows DualWield Spec and has equipped offhand weapon
             UpdateDamagePhysical(OFF_ATTACK);
         if (IsClass(CLASS_SHAMAN, CLASS_CONTEXT_STATS) || IsClass(CLASS_PALADIN, CLASS_CONTEXT_STATS))                      // mental quickness
             UpdateSpellDamageAndHealingBonus();
@@ -567,7 +584,7 @@ void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, bo
     float weaponMinDamage = GetWeaponDamageRange(attType, MINDAMAGE);
     float weaponMaxDamage = GetWeaponDamageRange(attType, MAXDAMAGE);
 
-    if (IsInFeralForm()) // check if player is druid and in cat or bear forms
+    if (IsAttackSpeedOverridenShapeShift()) // forms with no override on attack speed use normal weapon damage
     {
         uint8 lvl = GetLevel();
         if (lvl > 60)
@@ -879,7 +896,7 @@ void Player::UpdateExpertise(WeaponAttackType attack)
     if (attack == RANGED_ATTACK)
         return;
 
-    int32 expertise = int32(GetRatingBonusValue(CR_EXPERTISE));
+    float expertise = GetRatingBonusValue(CR_EXPERTISE);
 
     Item* weapon = GetWeaponForAttack(attack, true);
 
@@ -900,10 +917,12 @@ void Player::UpdateExpertise(WeaponAttackType attack)
     switch (attack)
     {
         case BASE_ATTACK:
-            SetUInt32Value(PLAYER_EXPERTISE, expertise);
+            m_Expertise = expertise;
+            SetUInt32Value(PLAYER_EXPERTISE, int32(expertise));
             break;
         case OFF_ATTACK:
-            SetUInt32Value(PLAYER_OFFHAND_EXPERTISE, expertise);
+            m_OffhandExpertise = expertise;
+            SetUInt32Value(PLAYER_OFFHAND_EXPERTISE, int32(expertise));
             break;
         default:
             break;
@@ -923,7 +942,7 @@ void Player::ApplyHealthRegenBonus(int32 amount, bool apply)
 
 void Player::UpdateManaRegen()
 {
-    if( HasAuraTypeWithMiscvalue(SPELL_AURA_PREVENT_REGENERATE_POWER, POWER_MANA + 1) )
+    if (HasAuraTypeWithMiscvalue(SPELL_AURA_PREVENT_REGENERATE_POWER, POWER_MANA + 1))
     {
         SetStatFloatValue(UNIT_FIELD_POWER_REGEN_INTERRUPTED_FLAT_MODIFIER, 0);
         SetStatFloatValue(UNIT_FIELD_POWER_REGEN_FLAT_MODIFIER, 0);
@@ -950,9 +969,19 @@ void Player::UpdateManaRegen()
     int32 modManaRegenInterrupt = GetTotalAuraModifier(SPELL_AURA_MOD_MANA_REGEN_INTERRUPT);
     if (modManaRegenInterrupt > 100)
         modManaRegenInterrupt = 100;
-    SetStatFloatValue(UNIT_FIELD_POWER_REGEN_INTERRUPTED_FLAT_MODIFIER, power_regen_mp5 + CalculatePct(power_regen, modManaRegenInterrupt));
+    SetStatFloatValue(UNIT_FIELD_POWER_REGEN_INTERRUPTED_FLAT_MODIFIER + AsUnderlyingType(POWER_MANA), power_regen_mp5 + CalculatePct(power_regen, modManaRegenInterrupt));
 
-    SetStatFloatValue(UNIT_FIELD_POWER_REGEN_FLAT_MODIFIER, power_regen_mp5 + power_regen);
+    SetStatFloatValue(UNIT_FIELD_POWER_REGEN_FLAT_MODIFIER + AsUnderlyingType(POWER_MANA), power_regen_mp5 + power_regen);
+}
+
+void Player::UpdateEnergyRegen()
+{
+    float regenPerSecond = 10.f;   // +10 energy per second
+    regenPerSecond *= GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_POWER_REGEN_PERCENT, POWER_ENERGY);
+    regenPerSecond += static_cast<float>(GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_POWER_REGEN, POWER_ENERGY)) / static_cast<float>((5 * IN_MILLISECONDS));
+
+    SetStatFloatValue(UNIT_FIELD_POWER_REGEN_FLAT_MODIFIER + AsUnderlyingType(POWER_ENERGY), regenPerSecond - 10.f);
+    SetStatFloatValue(UNIT_FIELD_POWER_REGEN_INTERRUPTED_FLAT_MODIFIER + AsUnderlyingType(POWER_ENERGY), regenPerSecond - 10.f);
 }
 
 void Player::UpdateRuneRegen(RuneType rune)
@@ -1118,7 +1147,7 @@ void Creature::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, 
             break;
     }
 
-    if (attType == OFF_ATTACK && !haveOffhandWeapon())
+    if (attType == OFF_ATTACK && !HasOffhandWeaponForAttack())
     {
         minDamage = 0.0f;
         maxDamage = 0.0f;
@@ -1128,10 +1157,11 @@ void Creature::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, 
     float weaponMinDamage = GetWeaponDamageRange(attType, MINDAMAGE);
     float weaponMaxDamage = GetWeaponDamageRange(attType, MAXDAMAGE);
 
-    if (!CanUseAttackType(attType)) // disarm case
+    // Disarm for creatures
+    if (HasWeapon(attType) && !HasWeaponForAttack(attType))
     {
-        weaponMinDamage = 0.0f;
-        weaponMaxDamage = 0.0f;
+        minDamage *= 0.5f;
+        maxDamage *= 0.5f;
     }
 
     float attackPower      = GetTotalAttackPowerValue(attType);

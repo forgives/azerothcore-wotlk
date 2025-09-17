@@ -17,6 +17,7 @@
 
 #include "zulfarrak.h"
 #include "Cell.h"
+#include "CellImpl.h"
 #include "CreatureScript.h"
 #include "GameObject.h"
 #include "GameObjectAI.h"
@@ -28,18 +29,11 @@
 #include "ScriptSystem.h"
 #include "ScriptedCreature.h"
 #include "ScriptedGossip.h"
-/* ScriptData
-SDName: Zulfarrak
-SD%Complete: 50
-SDComment: Consider it temporary, no instance script made for this instance yet.
-SDCategory: Zul'Farrak
-EndScriptData */
 
-/* ContentData
-npc_sergeant_bly
-npc_weegli_blastfuse
-EndContentData */
-
+/// @todo: this import is not necessary for compilation and marked as unused by the IDE
+//  however, for some reasons removing it would cause a damn linking issue
+//  there is probably some underlying problem with imports which should properly addressed
+//  see: https://github.com/azerothcore/azerothcore-wotlk/issues/9766
 #include "GridNotifiersImpl.h"
 
 /*######
@@ -324,12 +318,12 @@ public:
             instance->SetData(DATA_PYRAMID, PYRAMID_CAGES_OPEN);
 
             //setting gossip option as soon as the cages open
-            if(Creature* bly = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_BLY)))
+            if (Creature* bly = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_BLY)))
             {
                 bly->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
             }
 
-            if(Creature* weegli = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_WEEGLI)))
+            if (Creature* weegli = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_WEEGLI)))
             {
                 weegli->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
             }
@@ -659,7 +653,7 @@ public:
                 Unit* unit = nullptr;
                 Acore::MostHPMissingInRange u_check(me, 40.f, 1500);
                 Acore::UnitLastSearcher<Acore::MostHPMissingInRange> searcher(me, unit, u_check);
-                Cell::VisitGridObjects(me, searcher, 40.f);
+                Cell::VisitObjects(me, searcher, 40.f);
                 if (unit)
                 {
                     DoCast(unit, SPELL_HEAL);
@@ -677,7 +671,7 @@ public:
                 Unit* unit = nullptr;
                 Acore::MostHPMissingInRange u_check(me, 40.f, 700);
                 Acore::UnitLastSearcher<Acore::MostHPMissingInRange> searcher(me, unit, u_check);
-                Cell::VisitGridObjects(me, searcher, 40.f);
+                Cell::VisitObjects(me, searcher, 40.f);
                 if (unit)
                 {
                     DoCast(unit, SPELL_RENEW);
@@ -733,4 +727,3 @@ void AddSC_zulfarrak()
     new npc_shadowpriest_sezziz();
     new go_troll_cage();
 }
-

@@ -19,15 +19,18 @@
 #define ACORE_GRIDNOTIFIERSIMPL_H
 
 #include "Corpse.h"
-#include "CreatureAI.h"
 #include "GridNotifiers.h"
 #include "Object.h"
-#include "Opcodes.h"
 #include "Player.h"
-#include "SpellAuras.h"
-#include "UpdateData.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+
+template<class T>
+inline void Acore::VisibleNotifier::Visit(std::vector<T>& m)
+{
+    for (typename std::vector<T>::iterator iter = m.begin(); iter != m.end(); ++iter)
+        i_player.UpdateVisibilityOf((*iter), i_data, i_visibleNow);
+}
 
 template<class T>
 inline void Acore::VisibleNotifier::Visit(GridRefMgr<T>& m)
@@ -37,13 +40,7 @@ inline void Acore::VisibleNotifier::Visit(GridRefMgr<T>& m)
         return;
 
     for (typename GridRefMgr<T>::iterator iter = m.begin(); iter != m.end(); ++iter)
-    {
-        if (i_largeOnly != iter->GetSource()->IsVisibilityOverridden())
-            continue;
-
-        vis_guids.erase(iter->GetSource()->GetGUID());
         i_player.UpdateVisibilityOf(iter->GetSource(), i_data, i_visibleNow);
-    }
 }
 
 // SEARCHERS & LIST SEARCHERS & WORKERS
@@ -580,7 +577,7 @@ void Acore::LocalizedPacketListDo<Builder>::operator()(Player* p)
     else
         data_list = &i_data_cache[cache_idx];
 
-    for (size_t i = 0; i < data_list->size(); ++i)
+    for (std::size_t i = 0; i < data_list->size(); ++i)
         p->SendDirectMessage((*data_list)[i]);
 }
 

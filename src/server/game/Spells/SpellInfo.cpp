@@ -18,6 +18,7 @@
 #include "SpellInfo.h"
 #include "Chat.h"
 #include "ConditionMgr.h"
+#include "Corpse.h"
 #include "DBCStores.h"
 #include "LootMgr.h"
 #include "Player.h"
@@ -500,6 +501,9 @@ int32 SpellEffectInfo::CalcValue(Unit const* caster, int32 const* bp, Unit const
                     break;
             }
 
+            if ((sSpellMgr->GetSpellInfo(_spellInfo->Effects[_effIndex].TriggerSpell) && sSpellMgr->GetSpellInfo(_spellInfo->Effects[_effIndex].TriggerSpell)->HasAttribute(SPELL_ATTR0_SCALES_WITH_CREATURE_LEVEL)) && _spellInfo->HasAttribute(SPELL_ATTR0_SCALES_WITH_CREATURE_LEVEL))
+                canEffectScale = false;
+
             if (canEffectScale)
             {
                 CreatureTemplate const* cInfo = caster->ToCreature()->GetCreatureTemplate();
@@ -874,6 +878,15 @@ bool SpellInfo::HasEffect(SpellEffects effect) const
     for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
         if (Effects[i].IsEffect(effect))
             return true;
+    return false;
+}
+
+bool SpellInfo::HasEffectMechanic(Mechanics mechanic) const
+{
+    for (auto const& effect : Effects)
+        if (effect.Mechanic == mechanic)
+            return true;
+
     return false;
 }
 
@@ -1435,16 +1448,16 @@ SpellCastResult SpellInfo::CheckShapeshift(uint32 form) const
         return SPELL_CAST_OK;
 
     bool actAsShifted = false;
-    SpellShapeshiftEntry const* shapeInfo = nullptr;
+    SpellShapeshiftFormEntry const* shapeInfo = nullptr;
     if (form > 0)
     {
-        shapeInfo = sSpellShapeshiftStore.LookupEntry(form);
+        shapeInfo = sSpellShapeshiftFormStore.LookupEntry(form);
         if (!shapeInfo)
         {
             LOG_ERROR("spells", "GetErrorAtShapeshiftedCast: unknown shapeshift {}", form);
             return SPELL_CAST_OK;
         }
-        actAsShifted = !(shapeInfo->flags1 & 1);            // shapeshift acts as normal form for spells
+        actAsShifted = !(shapeInfo->flags1 & SHAPESHIFT_FLAG_STANCE);            // shapeshift acts as normal form for spells
     }
 
     if (actAsShifted)
@@ -1464,7 +1477,7 @@ SpellCastResult SpellInfo::CheckShapeshift(uint32 form) const
     // Check if stance disables cast of not-stance spells
     // Example: cannot cast any other spells in zombie or ghoul form
     /// @todo: Find a way to disable use of these spells clientside
-    if (shapeInfo && shapeInfo->flags1 & 0x400)
+    if (shapeInfo && (shapeInfo->flags1 & SHAPESHIFT_FLAG_CAN_ONLY_CAST_SHAPESHIFT_SPELLS))
     {
         if (!(stanceMask & Stances))
             return SPELL_FAILED_ONLY_SHAPESHIFT;
@@ -1535,9 +1548,9 @@ SpellCastResult SpellInfo::CheckLocation(uint32 map_id, uint32 zone_id, uint32 a
     {
         case 23333:                                         // Warsong Flag
         case 23335:                                         // Silverwing Flag
-            return map_id == 489 && player && player->InBattleground() ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
+            return map_id == MAP_WARSONG_GULCH && player && player->InBattleground() ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
         case 34976:                                         // Netherstorm Flag
-            return map_id == 566 && player && player->InBattleground() ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
+            return map_id == MAP_EYE_OF_THE_STORM && player && player->InBattleground() ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
         case 2584:                                          // Waiting to Resurrect
         case 22011:                                         // Spirit Heal Channel
         case 22012:                                         // Spirit Heal
@@ -1549,7 +1562,7 @@ SpellCastResult SpellInfo::CheckLocation(uint32 map_id, uint32 zone_id, uint32 a
                 if (!mapEntry)
                     return SPELL_FAILED_INCORRECT_AREA;
 
-                return zone_id == 4197 || (mapEntry->IsBattleground() && player && player->InBattleground()) ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
+                return zone_id == AREA_WINTERGRASP || (mapEntry->IsBattleground() && player && player->InBattleground()) ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
             }
         case 32724:                                         // Gold Team (Alliance)
         case 32725:                                         // Green Team (Alliance)
@@ -1762,17 +1775,17 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
             return SPELL_FAILED_TARGET_AFFECTING_COMBAT;
 
         // only spells with SPELL_ATTR3_ONLY_ON_GHOSTS can target ghosts
-        if (((IsRequiringDeadTarget() != 0) != unitTarget->HasAuraType(SPELL_AURA_GHOST)) && !(IsDeathPersistent() && IsAllowingDeadTarget()))
+        if (IsRequiringDeadTarget())
         {
-            if (AttributesEx3 & SPELL_ATTR3_ONLY_ON_GHOSTS)
+            if (!unitTarget->HasGhostAura())
                 return SPELL_FAILED_TARGET_NOT_GHOST;
-            else
+            if (!IsDeathPersistent() && !IsAllowingDeadTarget())
                 return SPELL_FAILED_BAD_TARGETS;
         }
 
         if (caster != unitTarget)
         {
-            if (caster->GetTypeId() == TYPEID_PLAYER)
+            if (caster->IsPlayer())
             {
                 // Do not allow these spells to target creatures not tapped by us (Banish, Polymorph, many quest spells)
                 if (AttributesEx2 & SPELL_ATTR2_CANNOT_CAST_ON_TAPPED)
@@ -1850,14 +1863,25 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
     else return SPELL_CAST_OK;
 
     // corpseOwner and unit specific target checks
-    if (AttributesEx3 & SPELL_ATTR3_ONLY_ON_PLAYER && !unitTarget->ToPlayer())
-        return SPELL_FAILED_TARGET_NOT_PLAYER;
+    if (unitTarget->IsPlayer())
+    {
+        if (HasAttribute(SPELL_ATTR5_NOT_ON_PLAYER))
+            return SPELL_FAILED_TARGET_IS_PLAYER;
+    }
+    else
+    {
+        if (HasAttribute(SPELL_ATTR3_ONLY_ON_PLAYER))
+            return SPELL_FAILED_TARGET_NOT_PLAYER;
+
+        if (HasAttribute(SPELL_ATTR5_NOT_ON_PLAYER_CONTROLLED_NPC) && unitTarget->IsControlledByPlayer())
+            return SPELL_FAILED_TARGET_IS_PLAYER_CONTROLLED;
+    }
 
     if (!IsAllowingDeadTarget() && !unitTarget->IsAlive())
         return SPELL_FAILED_TARGETS_DEAD;
 
     // check this flag only for implicit targets (chain and area), allow to explicitly target units for spells like Shield of Righteousness
-    if (implicit && AttributesEx6 & SPELL_ATTR6_DO_NOT_CHAIN_TO_CROWD_CONTROLLED_TARGETS && !unitTarget->CanFreeMove())
+    if (implicit && AttributesEx6 & SPELL_ATTR6_DO_NOT_CHAIN_TO_CROWD_CONTROLLED_TARGETS && unitTarget->HasUnitState(UNIT_STATE_CONTROLLED))
         return SPELL_FAILED_BAD_TARGETS;
 
     // checked in Unit::IsValidAttack/AssistTarget, shouldn't be checked for ENTRY targets
@@ -1868,14 +1892,14 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
 
     if (!CheckTargetCreatureType(unitTarget))
     {
-        if (target->GetTypeId() == TYPEID_PLAYER)
+        if (target->IsPlayer())
             return SPELL_FAILED_TARGET_IS_PLAYER;
         else
             return SPELL_FAILED_BAD_TARGETS;
     }
 
     // check GM mode and GM invisibility - only for player casts (npc casts are controlled by AI) and negative spells
-    if (unitTarget != caster && (caster->IsControlledByPlayer() || !IsPositive()) && unitTarget->GetTypeId() == TYPEID_PLAYER)
+    if (unitTarget != caster && (caster->IsControlledByPlayer() || !IsPositive()) && unitTarget->IsPlayer())
     {
         if (!unitTarget->ToPlayer()->IsVisible())
             return SPELL_FAILED_BM_OR_INVISGOD;
@@ -1910,7 +1934,7 @@ SpellCastResult SpellInfo::CheckTarget(Unit const* caster, WorldObject const* ta
     if (ExcludeTargetAuraSpell && unitTarget->HasAura(sSpellMgr->GetSpellIdForDifficulty(ExcludeTargetAuraSpell, caster)))
         return SPELL_FAILED_TARGET_AURASTATE;
 
-    if (unitTarget->HasAuraType(SPELL_AURA_PREVENT_RESURRECTION) && !HasAttribute(SPELL_ATTR7_BYPASS_NO_RESURRECTION_AURA))
+    if (unitTarget->HasPreventResurectionAura() && !HasAttribute(SPELL_ATTR7_BYPASS_NO_RESURRECTION_AURA))
         if (HasEffect(SPELL_EFFECT_SELF_RESURRECT) || HasEffect(SPELL_EFFECT_RESURRECT) || HasEffect(SPELL_EFFECT_RESURRECT_NEW))
             return SPELL_FAILED_TARGET_CANNOT_BE_RESURRECTED;
 
@@ -1962,7 +1986,7 @@ bool SpellInfo::CheckTargetCreatureType(Unit const* target) const
     if (SpellFamilyName == SPELLFAMILY_WARLOCK && GetCategory() == 1179)
     {
         // not allow cast at player
-        if (target->GetTypeId() == TYPEID_PLAYER)
+        if (target->IsPlayer())
             return false;
         else
             return true;
@@ -2107,11 +2131,13 @@ AuraStateType SpellInfo::LoadAuraState() const
         case 9806:  // Phantom Strike
         case 35325: // Glowing Blood
         case 35328: // Lambent Blood
+        case 35329: // Vibrant Blood
         case 16498: // Faerie Fire
         case 6950:
         case 20656:
         case 25602:
         case 32129:
+        case 49163: // Perpetual Instability (Element 115)
             return AURA_STATE_FAERIE_FIRE;
         default:
             break;
@@ -2436,7 +2462,7 @@ int32 SpellInfo::CalcPowerCost(Unit const* caster, SpellSchoolMask schoolMask, S
     if (AttributesEx4 & SPELL_ATTR4_WEAPON_SPEED_COST_SCALING)
     {
         uint32 speed = 0;
-        if (SpellShapeshiftEntry const* ss = sSpellShapeshiftStore.LookupEntry(caster->GetShapeshiftForm()))
+        if (SpellShapeshiftFormEntry const* ss = sSpellShapeshiftFormStore.LookupEntry(caster->GetShapeshiftForm()))
             speed = ss->attackSpeed;
         else
         {
@@ -2514,6 +2540,10 @@ SpellInfo const* SpellInfo::GetAuraRankForLevel(uint8 level) const
     // ignore passive spells
     //if (IsPassive())
     //    return this;
+
+    // Client ignores spell with these attributes (sub_53D9D0)
+    if (HasAttribute(SPELL_ATTR0_COOLDOWN_ON_EVENT) || HasAttribute(SPELL_ATTR2_ALLOW_LOW_LEVEL_BUFF) || HasAttribute(SPELL_ATTR3_ONLY_PROC_ON_CASTER))
+        return this;
 
     bool needRankSelection = false;
     for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
@@ -2626,16 +2656,6 @@ bool SpellInfo::_IsPositiveEffect(uint8 effIndex, bool deep) const
 
     switch (Effects[effIndex].Effect)
     {
-        case SPELL_EFFECT_DUMMY:
-            // some explicitly required dummy effect sets
-            switch (Id)
-            {
-                case 28441:
-                    return false; // AB Effect 000
-                default:
-                    break;
-            }
-            break;
         // always positive effects (check before target checks that provided non-positive result in some case for positive effects)
         case SPELL_EFFECT_HEAL:
         case SPELL_EFFECT_LEARN_SPELL:
@@ -2645,10 +2665,8 @@ bool SpellInfo::_IsPositiveEffect(uint8 effIndex, bool deep) const
             return true;
         case SPELL_EFFECT_APPLY_AREA_AURA_ENEMY:
             return false;
-
         case SPELL_EFFECT_GAMEOBJECT_DAMAGE:
             return false;
-
         case SPELL_EFFECT_SCHOOL_DAMAGE:
             {
                 bool only = true;
@@ -2672,7 +2690,6 @@ bool SpellInfo::_IsPositiveEffect(uint8 effIndex, bool deep) const
                         return false;
                 break;
             }
-
         // non-positive aura use
         case SPELL_EFFECT_APPLY_AURA:
         case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:

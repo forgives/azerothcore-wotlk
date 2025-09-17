@@ -18,6 +18,7 @@
 #include "InstanceMapScript.h"
 #include "ScriptedCreature.h"
 #include "gundrak.h"
+#include "GameObjectAI.h"
 
 DoorData const doorData[] =
 {
@@ -32,7 +33,7 @@ DoorData const doorData[] =
 class instance_gundrak : public InstanceMapScript
 {
 public:
-    instance_gundrak() : InstanceMapScript("instance_gundrak", 604) { }
+    instance_gundrak() : InstanceMapScript("instance_gundrak", MAP_GUNDRAK) { }
 
     InstanceScript* GetInstanceScript(InstanceMap* pMap) const override
     {
@@ -211,6 +212,9 @@ public:
                     if (GameObject* go = instance->GetGameObject(_bridgeGUIDs[i]))
                         go->SetGoState(GO_STATE_ACTIVE_ALTERNATIVE);
             }
+            if (GameObject* collision = instance->GetGameObject(_bridgeGUIDs[4]))
+                if (collision->AI())
+                    collision->AI()->SetData(0, 1);
         }
     };
 };
@@ -219,4 +223,3 @@ void AddSC_instance_gundrak()
 {
     new instance_gundrak();
 }
-

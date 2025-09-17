@@ -23,6 +23,7 @@
 #include "ScriptedEscortAI.h"
 #include "ScriptedGossip.h"
 #include "SpellInfo.h"
+#include "WorldStateDefines.h"
 
 enum Says
 {
@@ -97,13 +98,15 @@ enum Says
 
     //Cityman
     SAY_PHASE202                                = 0,
+    SAY_PHASE204_1                              = 0,
 
     //Crazyman
-    SAY_PHASE204                                = 0,
+    SAY_PHASE204                                = 1,
 
     //Drakonian
     SAY_PHASE302                                = 0,
     SAY_PHASE305                                = 1,
+    SAY_PHASE305_1                              = 39,
 };
 
 enum NPCs
@@ -515,7 +518,7 @@ public:
 
         void WaypointReached(uint32 uiPointId) override
         {
-            switch(uiPointId)
+            switch (uiPointId)
             {
                 // Starting waypoint, After reaching uther and jaina
                 case 0:
@@ -559,7 +562,7 @@ public:
                 case 11:
                     if (Creature* cityman = GetEventNpc(NPC_CITY_MAN2))
                     {
-                        cityman->Say("Oh no...", LANG_UNIVERSAL); // missing script_text
+                        cityman->AI()->Talk(SAY_PHASE204_1);
                         me->CastSpell(cityman, SPELL_ARTHAS_CRUSADER_STRIKE, true);
                     }
                     me->SetReactState(REACT_DEFENSIVE);
@@ -689,6 +692,7 @@ public:
                         // Start Event
                         Start(true, false);
                         SetDespawnAtEnd(false);
+                        SetDespawnAtFar(false);
 
                         ScheduleNextEvent(currentEvent, 9000);
                         break;
@@ -922,7 +926,7 @@ public:
                         break;
                     case EVENT_ACTION_PHASE2+9:
                         if (pInstance)
-                            pInstance->DoUpdateWorldState(WORLDSTATE_WAVE_COUNT, 0);
+                            pInstance->DoUpdateWorldState(WORLD_STATE_CULLING_OF_STRATHOLME_WAVE_COUNT, 0);
 
                         Talk(SAY_PHASE210);
                         eventInRun = false;
@@ -952,7 +956,7 @@ public:
                         eventInRun = false;
                         ScheduleNextEvent(currentEvent, 0);
                         break;
-                    //After waypoint 23
+                    // After waypoint 23
                     case EVENT_ACTION_PHASE3+3:
                         SetRun(true);
                         if (Creature* cr = GetEventNpc(NPC_CITY_MAN3))
@@ -968,10 +972,12 @@ public:
                             cr->AI()->Talk(SAY_PHASE305);
                         ScheduleNextEvent(currentEvent, 1000);
                         break;
+                    // Trio citizen transformation right as we enter Town Hall
                     case EVENT_ACTION_PHASE3+6:
                         if (Creature* cr = GetEventNpc(NPC_CITY_MAN))
                         {
                             cr->UpdateEntry(NPC_INFINITE_HUNTER, nullptr, false);
+                            cr->SetFullHealth();
                             cr->SetImmuneToAll(true);
                             cr->SetReactState(REACT_PASSIVE);
                         }
@@ -981,6 +987,7 @@ public:
                         if (Creature* cr = GetEventNpc(NPC_CITY_MAN4))
                         {
                             cr->UpdateEntry(NPC_INFINITE_AGENT, nullptr, false);
+                            cr->SetFullHealth();
                             cr->SetImmuneToAll(true);
                             cr->SetReactState(REACT_PASSIVE);
                         }
@@ -990,18 +997,19 @@ public:
                         if (Creature* cr = GetEventNpc(NPC_CITY_MAN3))
                         {
                             cr->UpdateEntry(NPC_INFINITE_ADVERSARY, nullptr, false);
+                            cr->SetFullHealth();
                             cr->SetReactState(REACT_AGGRESSIVE);
                             cr->SetInCombatWithZone();
                             cr->AddThreat(me, 0.0f);
                         }
-                        if (Creature* cr = GetEventNpc(NPC_INFINITE_AGENT)) // it is infinite agent now :)
+                        if (Creature* cr = GetEventNpc(NPC_INFINITE_AGENT))
                         {
                             cr->SetImmuneToAll(false);
                             cr->SetReactState(REACT_AGGRESSIVE);
                             cr->SetInCombatWithZone();
                             cr->AddThreat(me, 0.0f);
                         }
-                        if (Creature* cr = GetEventNpc(NPC_INFINITE_HUNTER)) // it is infinite hunter now :)
+                        if (Creature* cr = GetEventNpc(NPC_INFINITE_HUNTER))
                         {
                             cr->SetImmuneToAll(false);
                             cr->SetReactState(REACT_AGGRESSIVE);
@@ -1019,7 +1027,7 @@ public:
                         }
 
                         summons.DespawnAll();
-                        me->Say("I can't afford to spare you.", LANG_UNIVERSAL);
+                        Talk(SAY_PHASE305_1);
                         me->SetFacingTo(0.0f);
                         ScheduleNextEvent(currentEvent, 5000);
                         break;
@@ -1272,7 +1280,7 @@ void npc_arthas::npc_arthasAI::ReorderInstance(uint32 data)
             else // if (data == COS_PROGRESS_KILLED_SALRAMM)
             {
                 if (pInstance)
-                    pInstance->DoUpdateWorldState(WORLDSTATE_WAVE_COUNT, 10);
+                    pInstance->DoUpdateWorldState(WORLD_STATE_CULLING_OF_STRATHOLME_WAVE_COUNT, 10);
                 DoAction(ACTION_KILLED_SALRAMM);
             }
             break;
@@ -1329,7 +1337,7 @@ void npc_arthas::npc_arthasAI::SendNextWave(uint32 entry)
         else
             SummonNextWave();
 
-        pInstance->DoUpdateWorldState(WORLDSTATE_WAVE_COUNT, waveGroupId + 1);
+        pInstance->DoUpdateWorldState(WORLD_STATE_CULLING_OF_STRATHOLME_WAVE_COUNT, waveGroupId + 1);
     }
 }
 
@@ -1548,7 +1556,7 @@ public:
 
         void MoveInLineOfSight(Unit* who) override
         {
-            if (!allowTimer && !locked && (who->GetTypeId() == TYPEID_PLAYER || who->IsPet()) && me->GetDistance(who) < 15.0f)
+            if (!allowTimer && !locked && (who->IsPlayer() || who->IsPet()) && me->GetDistance(who) < 15.0f)
                 InfectMe(2000);
 
             ScriptedAI::MoveInLineOfSight(who);

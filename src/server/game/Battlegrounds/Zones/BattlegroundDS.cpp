@@ -22,6 +22,8 @@
 #include "ObjectAccessor.h"
 #include "Player.h"
 #include "WorldPacket.h"
+#include "WorldStateDefines.h"
+#include "WorldStatePackets.h"
 
 BattlegroundDS::BattlegroundDS()
 {
@@ -103,7 +105,7 @@ void BattlegroundDS::StartingEventOpenDoors()
         DoorOpen(i);
 
     for (uint32 i = BG_DS_OBJECT_BUFF_1; i <= BG_DS_OBJECT_BUFF_2; ++i)
-        SpawnBGObject(i, 60);
+        SpawnBGObject(i, 90);
 
     _events.ScheduleEvent(BG_DS_EVENT_WATERFALL_WARNING, BG_DS_WATERFALL_TIMER_MIN, BG_DS_WATERFALL_TIMER_MAX);
     //for (uint8 i = 0; i < BG_DS_PIPE_KNOCKBACK_TOTAL_COUNT; ++i)
@@ -173,10 +175,10 @@ bool BattlegroundDS::HandlePlayerUnderMap(Player* player)
     return true;
 }
 
-void BattlegroundDS::FillInitialWorldStates(WorldPacket& data)
+void BattlegroundDS::FillInitialWorldStates(WorldPackets::WorldState::InitWorldStates& packet)
 {
-    data << uint32(3610) << uint32(1);                                              // 9 show
-    Arena::FillInitialWorldStates(data);
+    packet.Worldstates.emplace_back(WORLD_STATE_BATTLEGROUND_RV_ARENA_SHOW, 1); // Wrong worldstate used
+    Arena::FillInitialWorldStates(packet);
 }
 
 bool BattlegroundDS::SetupBattleground()

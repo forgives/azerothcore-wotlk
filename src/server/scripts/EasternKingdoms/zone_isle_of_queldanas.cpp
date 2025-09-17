@@ -15,6 +15,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "AreaDefines.h"
 #include "CreatureScript.h"
 #include "PassiveAI.h"
 #include "Pet.h"
@@ -23,19 +24,6 @@
 #include "SpellInfo.h"
 #include "SpellScript.h"
 #include "SpellScriptLoader.h"
-/* ScriptData
-SDName: Isle_of_Queldanas
-SD%Complete: 100
-SDComment: Quest support: 11524, 11525, 11532, 11533, 11542, 11543, 11541
-SDCategory: Isle Of Quel'Danas
-EndScriptData */
-
-/* ContentData
-npc_converted_sentry
-npc_greengill_slave
-EndContentData */
-
-/*###### OUR: ######*/
 
 enum ThalorienNpcs
 {
@@ -193,7 +181,7 @@ public:
                 {
                     me->RemoveAurasDueToSpell(67541);
                     me->GetMotionMaster()->MoveCharge(11779.30f, -7065.43f, 24.92f, me->GetSpeed(MOVE_RUN), EVENT_CHARGE);
-                    switch(summon->GetEntry())
+                    switch (summon->GetEntry())
                     {
                         case NPC_SCOURGE_ZOMBIE:
                             events.ScheduleEvent(EVENT_SPAWN_WAVE_2, 3000);
@@ -457,31 +445,20 @@ enum PurificationIds
     NPC_AURIC = 37765,
 };
 
-class spell_bh_cleanse_quel_delar : public SpellScriptLoader
+class spell_bh_cleanse_quel_delar : public SpellScript
 {
-public:
-    spell_bh_cleanse_quel_delar() : SpellScriptLoader("spell_bh_cleanse_quel_delar") { }
+    PrepareSpellScript(spell_bh_cleanse_quel_delar);
 
-    class spell_bh_cleanse_quel_delar_SpellScript : public SpellScript
+    void OnEffect(SpellEffIndex  /*effIndex*/)
     {
-        PrepareSpellScript(spell_bh_cleanse_quel_delar_SpellScript);
+        if (Unit* caster = GetCaster())
+            if (Creature* c = caster->FindNearestCreature(NPC_ROMMATH, 50.0f, true))
+                c->AI()->DoAction(-1);
+    }
 
-        void OnEffect(SpellEffIndex  /*effIndex*/)
-        {
-            if (Unit* caster = GetCaster())
-                if (Creature* c = caster->FindNearestCreature(NPC_ROMMATH, 50.0f, true))
-                    c->AI()->DoAction(-1);
-        }
-
-        void Register() override
-        {
-            OnEffectLaunch += SpellEffectFn(spell_bh_cleanse_quel_delar_SpellScript::OnEffect, EFFECT_0, SPELL_EFFECT_SEND_EVENT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void Register() override
     {
-        return new spell_bh_cleanse_quel_delar_SpellScript();
+        OnEffectLaunch += SpellEffectFn(spell_bh_cleanse_quel_delar::OnEffect, EFFECT_0, SPELL_EFFECT_SEND_EVENT);
     }
 };
 
@@ -510,7 +487,7 @@ public:
 
         void MoveInLineOfSight(Unit* who) override
         {
-            if (!announced && who->GetTypeId() == TYPEID_PLAYER && who->GetPositionZ() < 30.0f)
+            if (!announced && who->IsPlayer() && who->GetPositionZ() < 30.0f)
             {
                 announced = true;
                 playerGUID = who->GetGUID();
@@ -688,14 +665,31 @@ public:
     };
 };
 
+// 45396, 45398 - Weapon Coating Enchant
+class spell_gen_weapon_coating_enchant : public AuraScript
+{
+    PrepareAuraScript(spell_gen_weapon_coating_enchant);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Unit* caster = eventInfo.GetActor();
+        if (!caster)
+            return false;
+
+        return (caster->GetZoneId() == AREA_ISLE_OF_QUEL_DANAS || caster->GetZoneId() == AREA_SUNWELL_PLATEAU || caster->GetZoneId() == AREA_MAGISTERS_TERRACE);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_gen_weapon_coating_enchant::CheckProc);
+    }
+};
+
 void AddSC_isle_of_queldanas()
 {
-    // OUR:
     new npc_bh_thalorien_dawnseeker();
-    new spell_bh_cleanse_quel_delar();
+    RegisterSpellScript(spell_bh_cleanse_quel_delar);
     new npc_grand_magister_rommath();
-
-    // THEIR:
     new npc_greengill_slave();
+    RegisterSpellScript(spell_gen_weapon_coating_enchant);
 }
-

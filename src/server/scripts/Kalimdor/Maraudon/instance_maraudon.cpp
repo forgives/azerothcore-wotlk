@@ -15,7 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "CreatureScript.h"
 #include "InstanceMapScript.h"
 #include "InstanceScript.h"
 #include "maraudon.h"
@@ -23,7 +22,7 @@
 class instance_maraudon : public InstanceMapScript
 {
 public:
-    instance_maraudon() : InstanceMapScript("instance_maraudon", 349) { }
+    instance_maraudon() : InstanceMapScript("instance_maraudon", MAP_MARAUDON) { }
 
     struct instance_maraudon_InstanceMapScript : public InstanceScript
     {

@@ -15,13 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-SDName: Npc_EscortAI
-SD%Complete: 100
-SDComment:
-SDCategory: Npc
-EndScriptData */
-
 #include "ScriptedEscortAI.h"
 #include "Group.h"
 #include "Player.h"
@@ -111,7 +104,7 @@ bool npc_escortAI::AssistPlayerInCombatAgainst(Unit* who)
     }
 
     // or if enemy is in evade mode
-    if (who->GetTypeId() == TYPEID_UNIT && who->ToCreature()->IsInEvadeMode())
+    if (who->IsCreature() && who->ToCreature()->IsInEvadeMode())
     {
         return false;
     }

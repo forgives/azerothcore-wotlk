@@ -126,7 +126,7 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket& recvData)
         }
     }
 
-    sScriptMgr->PetitionBuy(_player, creature, charterid, cost, type);
+    sScriptMgr->OnPlayerPetitionBuy(_player, creature, charterid, cost, type);
 
     if (type == GUILD_CHARTER_TYPE)
     {
@@ -136,7 +136,7 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket& recvData)
             return;
         }
 
-        if (sObjectMgr->IsReservedName(name) || sObjectMgr->IsProfanityName(name) || !ObjectMgr::IsValidCharterName(name))
+        if (!ObjectMgr::IsValidCharterName(name))
         {
             Guild::SendCommandResult(this, GUILD_COMMAND_CREATE, ERR_GUILD_NAME_INVALID, name);
             return;
@@ -149,7 +149,7 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket& recvData)
             SendArenaTeamCommandResult(ERR_ARENA_TEAM_CREATE_S, name, "", ERR_ARENA_TEAM_NAME_EXISTS_S);
             return;
         }
-        if (sObjectMgr->IsReservedName(name) || sObjectMgr->IsProfanityName(name) || !ObjectMgr::IsValidCharterName(name))
+        if (!ObjectMgr::IsValidCharterName(name))
         {
             SendArenaTeamCommandResult(ERR_ARENA_TEAM_CREATE_S, name, "", ERR_ARENA_TEAM_NAME_INVALID);
             return;
@@ -183,7 +183,9 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket& recvData)
     if (!charter)
         return;
 
-    charter->SetUInt32Value(ITEM_FIELD_ENCHANTMENT_1_1, charter->GetGUID().GetCounter());
+    // Use a 31-bit safe petition id instead of the raw item guid
+    uint32 petitionId = sPetitionMgr->GeneratePetitionId();
+    charter->SetUInt32Value(ITEM_FIELD_ENCHANTMENT_1_1, petitionId);
     // ITEM_FIELD_ENCHANTMENT_1_1 is guild/arenateam id
     // ITEM_FIELD_ENCHANTMENT_1_1+1 is current signatures count (showed on item)
     charter->SetState(ITEM_CHANGED, _player);
@@ -211,16 +213,18 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket& recvData)
     // xinef: petition pointer is invalid from now on
 
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_PETITION);
-    stmt->SetData(0, _player->GetGUID().GetCounter());
-    stmt->SetData(1, charter->GetGUID().GetCounter());
-    stmt->SetData(2, name);
-    stmt->SetData(3, uint8(type));
+    // petition_id, ownerguid, petitionguid(item guid), name, type
+    stmt->SetData(0, petitionId);
+    stmt->SetData(1, _player->GetGUID().GetCounter());
+    stmt->SetData(2, charter->GetGUID().GetCounter());
+    stmt->SetData(3, name);
+    stmt->SetData(4, uint8(type));
     trans->Append(stmt);
 
     CharacterDatabase.CommitTransaction(trans);
 
-    // xinef: fill petition store
-    sPetitionMgr->AddPetition(charter->GetGUID(), _player->GetGUID(), name, uint8(type));
+    // xinef: fill petition store (include petitionId)
+    sPetitionMgr->AddPetition(charter->GetGUID(), _player->GetGUID(), name, uint8(type), petitionId);
 }
 
 void WorldSession::HandlePetitionShowSignOpcode(WorldPacket& recvData)
@@ -249,7 +253,7 @@ void WorldSession::HandlePetitionShowSignOpcode(WorldPacket& recvData)
     WorldPacket data(SMSG_PETITION_SHOW_SIGNATURES, (8 + 8 + 4 + 1 + signs * 12));
     data << petitionguid;                                   // petition guid
     data << _player->GetGUID();                             // owner guid
-    data << uint32(petitionguid.GetCounter());              // guild guid
+    data << uint32(petition->petitionId);                   // guild/team id (31-bit safe)
     data << uint8(signs);                                   // sign's count
 
     if (signs)
@@ -286,7 +290,7 @@ void WorldSession::SendPetitionQueryOpcode(ObjectGuid petitionguid)
 
     uint8 type = petition->petitionType;
     WorldPacket data(SMSG_PETITION_QUERY_RESPONSE, (4 + 8 + petition->petitionName.size() + 1 + 1 + 4 * 12 + 2 + 10));
-    data << uint32(petitionguid.GetCounter());              // guild/team guid (in Trinity always same as petition low guid
+    data << uint32(petition->petitionId);                   // guild/team id (was item low guid)
     data << petition->ownerGuid;                            // charter owner guid
     data << petition->petitionName;                         // name (guild/arena team)
     data << uint8(0);                                       // some string
@@ -350,7 +354,7 @@ void WorldSession::HandlePetitionRenameOpcode(WorldPacket& recvData)
             Guild::SendCommandResult(this, GUILD_COMMAND_CREATE, ERR_GUILD_NAME_EXISTS_S, newName);
             return;
         }
-        if (sObjectMgr->IsReservedName(newName) || sObjectMgr->IsProfanityName(newName) || !ObjectMgr::IsValidCharterName(newName))
+        if (!ObjectMgr::IsValidCharterName(newName))
         {
             Guild::SendCommandResult(this, GUILD_COMMAND_CREATE, ERR_GUILD_NAME_INVALID, newName);
             return;
@@ -363,7 +367,7 @@ void WorldSession::HandlePetitionRenameOpcode(WorldPacket& recvData)
             SendArenaTeamCommandResult(ERR_ARENA_TEAM_CREATE_S, newName, "", ERR_ARENA_TEAM_NAME_EXISTS_S);
             return;
         }
-        if (sObjectMgr->IsReservedName(newName) || sObjectMgr->IsProfanityName(newName) || !ObjectMgr::IsValidCharterName(newName))
+        if (!ObjectMgr::IsValidCharterName(newName))
         {
             SendArenaTeamCommandResult(ERR_ARENA_TEAM_CREATE_S, newName, "", ERR_ARENA_TEAM_NAME_INVALID);
             return;
@@ -373,7 +377,7 @@ void WorldSession::HandlePetitionRenameOpcode(WorldPacket& recvData)
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_PETITION_NAME);
 
     stmt->SetData(0, newName);
-    stmt->SetData(1, petitionGuid.GetCounter());
+    stmt->SetData(1, petition->petitionId);
 
     CharacterDatabase.Execute(stmt);
 
@@ -497,7 +501,7 @@ void WorldSession::HandlePetitionSignOpcode(WorldPacket& recvData)
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_PETITION_SIGNATURE);
 
     stmt->SetData(0, petition->ownerGuid.GetCounter());
-    stmt->SetData(1, petitionGuid.GetCounter());
+    stmt->SetData(1, petition->petitionId);
     stmt->SetData(2, playerGuid.GetCounter());
     stmt->SetData(3, GetAccountId());
 
@@ -625,7 +629,7 @@ void WorldSession::HandleOfferPetitionOpcode(WorldPacket& recvData)
     WorldPacket data(SMSG_PETITION_SHOW_SIGNATURES, (8 + 8 + 4 + signs + signs * 12));
     data << petitionguid;                                   // petition guid
     data << _player->GetGUID();                             // owner guid
-    data << uint32(petitionguid.GetCounter());              // guild guid
+    data << uint32(petition->petitionId);                   // guild/team id (31-bit safe)
     data << uint8(signs);                                   // sign's count
 
     if (signs)
@@ -790,12 +794,12 @@ void WorldSession::HandleTurnInPetitionOpcode(WorldPacket& recvData)
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_PETITION_BY_GUID);
-    stmt->SetData(0, petitionGuid.GetCounter());
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_PETITION_BY_ID);
+    stmt->SetData(0, petition->petitionId);
     trans->Append(stmt);
 
-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_PETITION_SIGNATURE_BY_GUID);
-    stmt->SetData(0, petitionGuid.GetCounter());
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_PETITION_SIGNATURE_BY_ID);
+    stmt->SetData(0, petition->petitionId);
     trans->Append(stmt);
 
     CharacterDatabase.CommitTransaction(trans);
@@ -840,7 +844,7 @@ void WorldSession::SendPetitionShowList(ObjectGuid guid)
 
     if (creature->IsTabardDesigner())
     {
-        sScriptMgr->PetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
+        sScriptMgr->OnPlayerPetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
 
         data << uint8(1);                                   // count
         data << uint32(1);                                  // index
@@ -859,7 +863,7 @@ void WorldSession::SendPetitionShowList(ObjectGuid guid)
 
         // 2v2
         data << uint8(3);                                   // count
-        sScriptMgr->PetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
+        sScriptMgr->OnPlayerPetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
         data << uint32(1);                                  // index
         data << CharterEntry;                               // charter entry
         data << CharterDispayID;                            // charter display id
@@ -873,7 +877,7 @@ void WorldSession::SendPetitionShowList(ObjectGuid guid)
         CharterCost = sWorld->getIntConfig(CONFIG_CHARTER_COST_ARENA_3v3);
 
         // 3v3
-        sScriptMgr->PetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
+        sScriptMgr->OnPlayerPetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
         data << uint32(2);                                  // index
         data << CharterEntry;                               // charter entry
         data << CharterDispayID;                            // charter display id
@@ -887,7 +891,7 @@ void WorldSession::SendPetitionShowList(ObjectGuid guid)
         CharterCost = sWorld->getIntConfig(CONFIG_CHARTER_COST_ARENA_5v5);
 
         // 5v5
-        sScriptMgr->PetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
+        sScriptMgr->OnPlayerPetitionShowList(_player, creature, CharterEntry, CharterDispayID, CharterCost);
         data << uint32(3);                                  // index
         data << CharterEntry;                               // charter entry
         data << CharterDispayID;                            // charter display id

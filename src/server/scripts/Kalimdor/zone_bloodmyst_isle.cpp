@@ -15,17 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-SDName: Bloodmyst_Isle
-SD%Complete: 80
-SDComment: Quest support: 9670
-SDCategory: Bloodmyst Isle
-EndScriptData */
-
-/* ContentData
-npc_webbed_creature
-EndContentData */
-
 #include "CreatureScript.h"
 #include "Player.h"
 #include "ScriptedCreature.h"
@@ -70,7 +59,7 @@ public:
                     {
                         if (Unit* owner = killer->GetOwner())
                         {
-                            if (owner->GetTypeId() == TYPEID_PLAYER)
+                            if (owner->IsPlayer())
                             {
                                 owner->ToPlayer()->KilledMonsterCredit(NPC_EXPEDITION_RESEARCHER);
                             }

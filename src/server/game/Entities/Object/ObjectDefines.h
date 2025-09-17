@@ -25,7 +25,6 @@
 #define ATTACK_DISTANCE              5.0f
 #define VISIBILITY_COMPENSATION      15.0f                  // increase searchers
 #define INSPECT_DISTANCE             28.0f
-#define VISIBILITY_INC_FOR_GOBJECTS  30.0f                  // pussywizard
 #define SPELL_SEARCHER_COMPENSATION  30.0f                  // increase searchers size in case we have large npc near cell border
 #define TRADE_DISTANCE               11.11f
 #define MAX_VISIBILITY_DISTANCE      250.0f                 // max distance for visible objects, experimental
@@ -40,7 +39,7 @@
 #define DEFAULT_VISIBILITY_DISTANCE  100.0f                 // default visible distance, 100 yards on continents
 #define DEFAULT_VISIBILITY_INSTANCE  170.0f                 // default visible distance in instances, 170 yards
 #define VISIBILITY_DIST_WINTERGRASP  175.0f
-#define DEFAULT_VISIBILITY_BGARENAS  533.0f                 // default visible distance in BG/Arenas, roughly 533 yards
+#define DEFAULT_VISIBILITY_BGARENAS  250.0f                 // default visible distance in BG/Arenas, roughly 250 yards
 
 #define DEFAULT_WORLD_OBJECT_SIZE   0.388999998569489f      // player size, also currently used (correctly?) for any non Unit world objects
 #define DEFAULT_COMBAT_REACH        1.5f
@@ -48,6 +47,8 @@
 #define NOMINAL_MELEE_RANGE         5.0f
 #define MELEE_RANGE                 (NOMINAL_MELEE_RANGE - MIN_MELEE_REACH * 2) //center to center for players
 #define DEFAULT_COLLISION_HEIGHT    2.03128f                // Most common value in dbc
+#define LEEWAY_MIN_MOVE_SPEED       4.97f                   // NYI
+#define LEEWAY_BONUS_RANGE          2.66f
 
 // used for creating values for respawn for example
 inline uint32 PAIR64_HIPART(uint64 x);

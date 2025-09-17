@@ -127,7 +127,7 @@ struct boss_malchezaar : public BossAI
 
             scheduler.Schedule(20s, 30s, [this](TaskContext context)
             {
-                DoCastRandomTarget(SPELL_AMPLIFY_DAMAGE, 1);
+                DoCastRandomTarget(SPELL_AMPLIFY_DAMAGE, 0, 0.0f, true, false, false);
                 context.Repeat();
             }).Schedule(20s, [this](TaskContext context)
             {
@@ -397,4 +397,3 @@ void AddSC_boss_malchezaar()
     RegisterKarazhanCreatureAI(npc_netherspite_infernal);
     RegisterSpellScript(spell_malchezaar_enfeeble);
 }
-

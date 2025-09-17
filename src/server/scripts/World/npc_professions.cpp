@@ -21,19 +21,7 @@
 #include "ScriptedCreature.h"
 #include "ScriptedGossip.h"
 #include "SpellInfo.h"
-/* ScriptData
-SDName: Npc_Professions
-SD%Complete: 80
-SDComment: Provides learn/unlearn/relearn-options for professions. Not supported: Unlearn engineering, re-learn engineering.
-SDCategory: NPCs
-EndScriptData */
-
-/*
-A few notes for future developement:
-- A full implementation of gossip for GO's is required. They must have the same scripting capabilities as creatures. Basically,
-there is no difference here (except that default text is chosen with `gameobject_template`.`data3` (for GO type2, different dataN for a few others)
-- It's possible blacksmithing still require some tweaks and adjustments due to the way we _have_ to use reputation.
-*/
+#include "SpellMgr.h"
 
 /*###
 # to be removed from here (->ncp_text). This is data for database projects.
@@ -1283,7 +1271,7 @@ public:
 
     void SendActionMenu(Player* player, GameObject*  /*gameobject*/, uint32 uiAction)
     {
-        switch(uiAction)
+        switch (uiAction)
         {
             // Learn Goblin
             case GOSSIP_ACTION_INFO_DEF + 1:
@@ -1353,7 +1341,7 @@ public:
     bool OnGossipSelect(Player* player, GameObject* gameobject, uint32 uiSender, uint32 uiAction) override
     {
         ClearGossipMenuFor(player);
-        switch(uiSender)
+        switch (uiSender)
         {
             case GOSSIP_SENDER_LEARN:
                 SendActionMenu(player, gameobject, uiAction);
@@ -1375,4 +1363,3 @@ void AddSC_npc_professions()
     new npc_prof_tailor();
     new go_evil_book_for_dummies();
 }
-

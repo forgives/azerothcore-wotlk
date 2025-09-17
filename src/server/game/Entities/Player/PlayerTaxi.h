@@ -19,7 +19,6 @@
 #define __PLAYER_TAXI_H__
 
 #include "DBCStructure.h"
-#include <vector>
 
 class ByteBuffer;
 
@@ -66,6 +65,9 @@ public:
     [[nodiscard]] uint32 GetCurrentTaxiPath() const;
     uint32 NextTaxiDestination()
     {
+        if (m_TaxiDestinations.empty())
+            return 0;
+
         m_TaxiDestinations.pop_front();
         return GetTaxiDestination();
     }

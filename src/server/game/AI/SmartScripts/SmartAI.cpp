@@ -70,6 +70,12 @@ SmartAI::SmartAI(Creature* c) : CreatureAI(c)
 
     mJustReset = false;
 
+    mcanSpawn = true;
+
+    _chaseOnInterrupt = false;
+
+    aiDataSet.clear();
+
     // Xinef: Vehicle conditions
     m_ConditionsTimer = 0;
     if (me->GetVehicleKit())
@@ -202,7 +208,7 @@ void SmartAI::StartPath(bool run, uint32 path, bool repeat, Unit* invoker)
         mCanRepeatPath = repeat;
         SetRun(run);
 
-        if (invoker && invoker->GetTypeId() == TYPEID_PLAYER)
+        if (invoker && invoker->IsPlayer())
         {
             mEscortNPCFlags = me->GetNpcFlags();
             me->ReplaceAllNpcFlags(UNIT_NPC_FLAG_NONE);
@@ -634,6 +640,9 @@ void SmartAI::MovementInform(uint32 MovementType, uint32 Data)
     if (MovementType == POINT_MOTION_TYPE && Data == SMART_ESCORT_LAST_OOC_POINT)
         me->ClearUnitState(UNIT_STATE_EVADE);
 
+    if (MovementType == WAYPOINT_MOTION_TYPE)
+        GetScript()->ProcessEventsFor(SMART_EVENT_WAYPOINT_DATA_REACHED, nullptr, Data + 1); // Data + 1 to align smart_scripts and waypoint_data Id rows
+
     GetScript()->ProcessEventsFor(SMART_EVENT_MOVEMENTINFORM, nullptr, MovementType, Data);
     if (!HasEscortState(SMART_ESCORT_ESCORTING))
         return;
@@ -653,6 +662,7 @@ void SmartAI::EnterEvadeMode(EvadeReason /*why*/)
     if (me->GetCharmerGUID().IsPlayer() || me->HasUnitFlag(UNIT_FLAG_POSSESSED))
     {
         me->AttackStop();
+        me->RemoveUnitFlag(UNIT_FLAG_IN_COMBAT);
         return;
     }
 
@@ -770,6 +780,7 @@ void SmartAI::JustRespawned()
     mFollowArrivedEntry = 0;
     mFollowCreditType = 0;
     mFollowArrivedAlive = true;
+    aiDataSet.clear();
 }
 
 void SmartAI::JustReachedHome()
@@ -843,6 +854,7 @@ void SmartAI::AttackStart(Unit* who)
             {
                 me->GetMotionMaster()->MovementExpired();
                 me->StopMoving();
+                me->GetMotionMaster()->Clear(false);
             }
 
             me->GetMotionMaster()->MoveChase(who);
@@ -888,7 +900,7 @@ void SmartAI::IsSummonedBy(WorldObject* summoner)
     GetScript()->ProcessEventsFor(SMART_EVENT_JUST_SUMMONED, summoner->ToUnit(), 0, 0, false, nullptr, summoner->ToGameObject());
 }
 
-void SmartAI::DamageDealt(Unit* doneTo, uint32& damage, DamageEffectType /*damagetype*/)
+void SmartAI::DamageDealt(Unit* doneTo, uint32& damage, DamageEffectType /*damagetype*/, SpellSchoolMask /*damageSchoolMask*/)
 {
     GetScript()->ProcessEventsFor(SMART_EVENT_DAMAGED_TARGET, doneTo, damage);
 }
@@ -954,14 +966,29 @@ void SmartAI::DoAction(int32 param)
     GetScript()->ProcessEventsFor(SMART_EVENT_ACTION_DONE, nullptr, param);
 }
 
-uint32 SmartAI::GetData(uint32 /*id*/) const
+uint32 SmartAI::GetData(uint32 id) const
 {
+    auto const& itr = aiDataSet.find(id);
+    if (itr != aiDataSet.end())
+        return itr->second;
+
     return 0;
 }
 
-void SmartAI::SetData(uint32 id, uint32 value)
+void SmartAI::SetData(uint32 id, uint32 value, WorldObject* invoker)
 {
-    GetScript()->ProcessEventsFor(SMART_EVENT_DATA_SET, nullptr, id, value);
+    Unit* unit = nullptr;
+    GameObject* gob = nullptr;
+
+    if (invoker)
+    {
+        unit = invoker->ToUnit();
+        if (!unit)
+            gob = invoker->ToGameObject();
+    }
+
+    aiDataSet[id] = value;
+    GetScript()->ProcessEventsFor(SMART_EVENT_DATA_SET, unit, id, value, false, nullptr, gob);
 }
 
 void SmartAI::SetGUID(ObjectGuid /*guid*/, int32 /*id*/)
@@ -1129,7 +1156,7 @@ void SmartAI::MoveAway(float distance)
     }
 }
 
-void SmartAI::SetScript9(SmartScriptHolder& e, uint32 entry, Unit* invoker)
+void SmartAI::SetScript9(SmartScriptHolder& e, uint32 entry, WorldObject* invoker)
 {
     if (invoker)
         GetScript()->mLastInvoker = invoker->GetGUID();
@@ -1148,6 +1175,12 @@ void SmartAI::OnSpellClick(Unit* clicker, bool&  /*result*/)
     //    return;
 
     GetScript()->ProcessEventsFor(SMART_EVENT_ON_SPELLCLICK, clicker);
+}
+
+void SmartAI::PathEndReached(uint32 /*pathId*/)
+{
+    GetScript()->ProcessEventsFor(SMART_EVENT_WAYPOINT_DATA_ENDED, nullptr, 0, me->GetWaypointPath());
+    me->LoadPath(0);
 }
 
 void SmartGameObjectAI::SummonedCreatureDies(Creature* summon, Unit* /*killer*/)
@@ -1224,12 +1257,22 @@ void SmartGameObjectAI::Destroyed(Player* player, uint32 eventId)
     GetScript()->ProcessEventsFor(SMART_EVENT_DEATH, player, eventId, 0, false, nullptr, me);
 }
 
-void SmartGameObjectAI::SetData(uint32 id, uint32 value)
+void SmartGameObjectAI::SetData(uint32 id, uint32 value, WorldObject* invoker)
 {
-    GetScript()->ProcessEventsFor(SMART_EVENT_DATA_SET, nullptr, id, value);
+    Unit* unit = nullptr;
+    GameObject* gob = nullptr;
+
+    if (invoker)
+    {
+        unit = invoker->ToUnit();
+        if (!unit)
+            gob = invoker->ToGameObject();
+    }
+
+    GetScript()->ProcessEventsFor(SMART_EVENT_DATA_SET, unit, id, value, false, nullptr, gob);
 }
 
-void SmartGameObjectAI::SetScript9(SmartScriptHolder& e, uint32 entry, Unit* invoker)
+void SmartGameObjectAI::SetScript9(SmartScriptHolder& e, uint32 entry, WorldObject* invoker)
 {
     if (invoker)
         GetScript()->mLastInvoker = invoker->GetGUID();

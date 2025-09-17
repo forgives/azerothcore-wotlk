@@ -53,8 +53,9 @@ ObjectData const creatureData[] =
 
 ObjectData const objectData[] =
 {
-    { GO_PORTCULLIS_CHROMAGGUS, DATA_GO_CHROMAGGUS_DOOR },
-    { GO_PORTCULLIS_CHROMAGGUS_EXIT, DATA_GO_CHROMAGGUS_DOOR_EXIT }
+    { GO_PORTCULLIS_CHROMAGGUS,      DATA_GO_CHROMAGGUS_DOOR      },
+    { GO_PORTCULLIS_CHROMAGGUS_EXIT, DATA_GO_CHROMAGGUS_DOOR_EXIT },
+    { 0,                             0                            }
 };
 
 Position const SummonPosition[8] =
@@ -74,7 +75,7 @@ uint32 const Entry[3] = { 12422, 12416, 12420 };
 class instance_blackwing_lair : public InstanceMapScript
 {
 public:
-    instance_blackwing_lair() : InstanceMapScript(BWLScriptName, 469) { }
+    instance_blackwing_lair() : InstanceMapScript(BWLScriptName, MAP_BLACKWING_LAIR) { }
 
     struct instance_blackwing_lair_InstanceMapScript : public InstanceScript
     {
@@ -478,44 +479,32 @@ enum ShadowFlame
 };
 
 // 22539 - Shadowflame (used in Blackwing Lair)
-class spell_bwl_shadowflame : public SpellScriptLoader
+class spell_bwl_shadowflame : public SpellScript
 {
-public:
-    spell_bwl_shadowflame() : SpellScriptLoader("spell_bwl_shadowflame") { }
+    PrepareSpellScript(spell_bwl_shadowflame);
 
-    class spell_bwl_shadowflame_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_bwl_shadowflame_SpellScript);
+        return ValidateSpellInfo({ SPELL_ONYXIA_SCALE_CLOAK, SPELL_SHADOW_FLAME_DOT });
+    }
 
-        bool Validate(SpellInfo const* /*spellInfo*/) override
-        {
-            return ValidateSpellInfo({ SPELL_ONYXIA_SCALE_CLOAK, SPELL_SHADOW_FLAME_DOT });
-        }
-
-        void HandleEffectScriptEffect(SpellEffIndex /*effIndex*/)
-        {
-            // If the victim of the spell does not have "Onyxia Scale Cloak" - add the Shadow Flame DoT (22682)
-            if (Unit* victim = GetHitUnit())
-                if (!victim->HasAura(SPELL_ONYXIA_SCALE_CLOAK))
-                    victim->AddAura(SPELL_SHADOW_FLAME_DOT, victim);
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_bwl_shadowflame_SpellScript::HandleEffectScriptEffect, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleEffectScriptEffect(SpellEffIndex /*effIndex*/)
     {
-        return new spell_bwl_shadowflame_SpellScript;
+        // If the victim of the spell does not have "Onyxia Scale Cloak" - add the Shadow Flame DoT (22682)
+        if (Unit* victim = GetHitUnit())
+            if (!victim->HasAura(SPELL_ONYXIA_SCALE_CLOAK))
+                victim->AddAura(SPELL_SHADOW_FLAME_DOT, victim);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_bwl_shadowflame::HandleEffectScriptEffect, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 };
 
 enum orb_of_command_misc
 {
-    QUEST_BLACKHANDS_COMMAND = 7761,
-    MAP_BWL                  = 469
+    QUEST_BLACKHANDS_COMMAND = 7761
 };
 
 const Position orbOfCommandTP = { -7672.46f, -1107.19f, 396.65f, 0.59f };
@@ -529,7 +518,7 @@ public:
     {
         if (!player->IsAlive() && player->GetQuestRewardStatus(QUEST_BLACKHANDS_COMMAND))
         {
-            player->TeleportTo(MAP_BWL, orbOfCommandTP.m_positionX, orbOfCommandTP.m_positionY, orbOfCommandTP.m_positionZ, orbOfCommandTP.m_orientation);
+            player->TeleportTo(MAP_BLACKWING_LAIR, orbOfCommandTP.m_positionX, orbOfCommandTP.m_positionY, orbOfCommandTP.m_positionZ, orbOfCommandTP.m_orientation);
             return true;
         }
         return false;
@@ -539,7 +528,6 @@ public:
 void AddSC_instance_blackwing_lair()
 {
     new instance_blackwing_lair();
-    new spell_bwl_shadowflame();
+    RegisterSpellScript(spell_bwl_shadowflame);
     new at_orb_of_command();
 }
-

@@ -15,6 +15,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "AreaDefines.h"
 #include "ArenaSpectator.h"
 #include "BattlegroundMgr.h"
 #include "LFGMgr.h"
@@ -23,7 +24,6 @@
 #include "Player.h"
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
-#include "Types.h"
 #include "World.h"
 
 bool ArenaSpectator::HandleSpectatorSpectateCommand(ChatHandler* handler, std::string const& name)
@@ -42,7 +42,7 @@ bool ArenaSpectator::HandleSpectatorSpectateCommand(ChatHandler* handler, std::s
         return true;
     }
 
-    if (player->IsClass(CLASS_DEATH_KNIGHT, CLASS_CONTEXT_TELEPORT) && player->GetMapId() == 609)
+    if (player->IsClass(CLASS_DEATH_KNIGHT, CLASS_CONTEXT_TELEPORT) && player->GetMapId() == MAP_EBON_HOLD)
     {
         handler->PSendSysMessage("Death Knights can't spectate before finishing questline.");
         return true;
@@ -86,7 +86,7 @@ bool ArenaSpectator::HandleSpectatorSpectateCommand(ChatHandler* handler, std::s
     if (player->IsInCombat())
         errors.push_back("Can't be in combat.");
 
-    if (player->isUsingLfg())
+    if (player->IsUsingLfg())
         errors.push_back("Can't spectate while using LFG system.");
 
     if (player->InBattlegroundQueue())
@@ -156,7 +156,7 @@ bool ArenaSpectator::HandleSpectatorSpectateCommand(ChatHandler* handler, std::s
     {
         handler->PSendSysMessage("To spectate, please fix the following:");
         for (std::list<std::string>::const_iterator itr = errors.begin(); itr != errors.end(); ++itr)
-            handler->PSendSysMessage("- %s", (*itr).c_str());
+            handler->PSendSysMessage("- {}", (*itr));
 
         return true;
     }
@@ -164,7 +164,7 @@ bool ArenaSpectator::HandleSpectatorSpectateCommand(ChatHandler* handler, std::s
     if (bgPreparation)
         return true;
 
-    float z = spectate->GetMapId() == 618 ? std::max(28.27f, spectate->GetPositionZ() + 0.25f) : spectate->GetPositionZ() + 0.25f;
+    float z = spectate->GetMapId() == MAP_THE_RING_OF_VALOR ? std::max(28.27f, spectate->GetPositionZ() + 0.25f) : spectate->GetPositionZ() + 0.25f;
 
     player->SetPendingSpectatorForBG(spectate->GetBattlegroundId());
     player->SetBattlegroundId(spectate->GetBattlegroundId(), spectate->GetBattlegroundTypeId(), PLAYER_MAX_BATTLEGROUND_QUEUES, false, false, TEAM_NEUTRAL);
@@ -212,7 +212,7 @@ bool ArenaSpectator::HandleSpectatorWatchCommand(ChatHandler* handler, std::stri
 
 void ArenaSpectator::CreatePacket(WorldPacket& data, std::string const& message)
 {
-    size_t len = message.length();
+    std::size_t len = message.length();
     data.Initialize(SMSG_MESSAGECHAT, 1 + 4 + 8 + 4 + 8 + 4 + 1 + len + 1);
     data << uint8(CHAT_MSG_WHISPER);
     data << uint32(LANG_ADDON);

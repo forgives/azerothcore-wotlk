@@ -16,6 +16,7 @@
  */
 
 #include "AccountMgr.h"
+#include "Common.h"
 #include "DatabaseEnv.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
@@ -27,7 +28,7 @@
 namespace AccountMgr
 {
 
-    AccountOpResult CreateAccount(std::string username, std::string password)
+    AccountOpResult CreateAccount(std::string username, std::string password, std::string email /*= ""*/)
     {
         if (utf8length(username) > MAX_ACCOUNT_STR)
             return AOR_NAME_TOO_LONG;                           // username's too long
@@ -35,8 +36,12 @@ namespace AccountMgr
         if (utf8length(password) > MAX_PASS_STR)
             return AOR_PASS_TOO_LONG;                           // password's too long
 
+        if (utf8length(email) > MAX_EMAIL_STR)
+            return AOR_EMAIL_TOO_LONG;                          // email is too long
+
         Utf8ToUpperOnlyLatin(username);
         Utf8ToUpperOnlyLatin(password);
+        Utf8ToUpperOnlyLatin(email);
 
         if (GetId(username))
             return AOR_NAME_ALREADY_EXIST;                      // username does already exist
@@ -48,6 +53,8 @@ namespace AccountMgr
         stmt->SetData(1, salt);
         stmt->SetData(2, verifier);
         stmt->SetData(3, uint8(sWorld->getIntConfig(CONFIG_EXPANSION)));
+        stmt->SetData(4, email);
+        stmt->SetData(5, email);
 
         LoginDatabase.Execute(stmt);
 
@@ -56,6 +63,33 @@ namespace AccountMgr
         LoginDatabase.Execute(stmt);
 
         return AOR_OK;                                          // everything's fine
+    }
+
+    AccountOpResult ChangeEmail(uint32 accountId, std::string newEmail)
+    {
+        std::string username;
+
+        if (!GetName(accountId, username))
+        {
+            sScriptMgr->OnFailedEmailChange(accountId);
+            return AOR_NAME_NOT_EXIST;                          // account doesn't exist
+        }
+
+        if (utf8length(newEmail) > MAX_EMAIL_STR)
+        {
+            sScriptMgr->OnFailedEmailChange(accountId);
+            return AOR_EMAIL_TOO_LONG;                           // email's too long
+        }
+
+        Utf8ToUpperOnlyLatin(newEmail);
+
+        LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_EMAIL);
+        stmt->SetData(0, newEmail);
+        stmt->SetData(1, accountId);
+        LoginDatabase.Execute(stmt);
+
+        sScriptMgr->OnEmailChange(accountId);
+        return AOR_OK;
     }
 
     AccountOpResult DeleteAccount(uint32 accountId)
@@ -67,6 +101,8 @@ namespace AccountMgr
         PreparedQueryResult result = LoginDatabase.Query(loginStmt);
         if (!result)
             return AOR_NAME_NOT_EXIST;
+
+        sScriptMgr->OnBeforeAccountDelete(accountId);
 
         // Obtain accounts characters
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARS_BY_ACCOUNT_ID);
@@ -276,6 +312,11 @@ namespace AccountMgr
     bool IsPlayerAccount(uint32 gmlevel)
     {
         return gmlevel == SEC_PLAYER;
+    }
+
+    bool IsGMAccount(uint32 gmlevel)
+    {
+        return gmlevel >= SEC_GAMEMASTER;
     }
 
     bool IsAdminAccount(uint32 gmlevel)

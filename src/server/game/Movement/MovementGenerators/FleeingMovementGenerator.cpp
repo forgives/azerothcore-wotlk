@@ -22,7 +22,6 @@
 #include "MoveSplineInit.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
-#include "VMapFactory.h"
 
 #define MIN_QUIET_DISTANCE 28.0f
 #define MAX_QUIET_DISTANCE 43.0f
@@ -138,10 +137,16 @@ void FleeingMovementGenerator<T>::SetTargetLocation(T* owner)
         _path->Clear();
     }
 
+    if (owner->IsPlayer())
+        _path->SetSlopeCheck(true);
+
     _path->SetPathLengthLimit(30.0f);
     bool result = _path->CalculatePath(destination.GetPositionX(), destination.GetPositionY(), destination.GetPositionZ());
-    if (!result || (_path->GetPathType() & PathType(PATHFIND_NOPATH | PATHFIND_SHORTCUT | PATHFIND_FARFROMPOLY)))
+    if (!result || (_path->GetPathType() & PathType(PATHFIND_NOPATH | PATHFIND_SHORTCUT | PATHFIND_FARFROMPOLY | PATHFIND_NOT_USING_PATH)))
     {
+        if (_fleeTargetGUID)
+            ++_invalidPathsCount;
+
         _timer.Reset(100);
         return;
     }
@@ -150,15 +155,13 @@ void FleeingMovementGenerator<T>::SetTargetLocation(T* owner)
     if (_path->getPathLength() < MIN_PATH_LENGTH)
     {
         if (_fleeTargetGUID)
-        {
-            ++_shortPathsCount;
-        }
+            ++_invalidPathsCount;
 
         _timer.Reset(100);
         return;
     }
 
-    _shortPathsCount = 0;
+    _invalidPathsCount = 0;
 
     Movement::MoveSplineInit init(owner);
     init.MovebyPath(_path->GetPath());
@@ -173,7 +176,7 @@ void FleeingMovementGenerator<T>::GetPoint(T* owner, Position& position)
     float casterDistance = 0.f;
     float casterAngle = 0.f;
     Unit* fleeTarget = nullptr;
-    if (_shortPathsCount < 5)
+    if (_invalidPathsCount < 5)
         fleeTarget = ObjectAccessor::GetUnit(*owner, _fleeTargetGUID);
 
     if (fleeTarget)

@@ -15,13 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-Name: tele_commandscript
-%Complete: 100
-Comment: All tele related commands
-Category: commandscripts
-EndScriptData */
-
 #include "Chat.h"
 #include "CommandScript.h"
 #include "DBCStores.h"
@@ -72,7 +65,7 @@ public:
         if (!player)
             return false;
 
-        if (sObjectMgr->GetGameTele(name))
+        if (sObjectMgr->GetGameTele(name, true))
         {
             handler->SendErrorMessage(LANG_COMMAND_TP_ALREADYEXIST);
             return false;
@@ -134,9 +127,9 @@ public:
                 return false;
             }
 
-            handler->PSendSysMessage(LANG_TELEPORTING_TO, chrNameLink.c_str(), "", locationName.c_str());
+            handler->PSendSysMessage(LANG_TELEPORTING_TO, chrNameLink, "", locationName);
             if (handler->needReportToTarget(target))
-                ChatHandler(target->GetSession()).PSendSysMessage(LANG_TELEPORTED_TO_BY, handler->GetNameLink().c_str());
+                ChatHandler(target->GetSession()).PSendSysMessage(LANG_TELEPORTED_TO_BY, handler->GetNameLink());
 
             // stop flight if need
             if (target->IsInFlight())
@@ -157,7 +150,7 @@ public:
 
             std::string nameLink = handler->playerLink(player.GetName());
 
-            handler->PSendSysMessage(LANG_TELEPORTING_TO, nameLink.c_str(), handler->GetAcoreString(LANG_OFFLINE), locationName.c_str());
+            handler->PSendSysMessage(LANG_TELEPORTING_TO, nameLink, handler->GetAcoreString(LANG_OFFLINE), locationName);
 
             Player::SavePositionInDB({ mapId, pos }, sMapMgr->GetZoneId(PHASEMASK_NORMAL, { mapId, pos }), player.GetGUID(), nullptr);
         }
@@ -176,7 +169,7 @@ public:
         if (where.index() == 1)    // References target's homebind
         {
             if (Player* target = player->GetConnectedPlayer())
-                target->TeleportTo(target->m_homebindMapId, target->m_homebindX, target->m_homebindY, target->m_homebindZ, target->m_homebindO);
+                target->TeleportTo(target->m_homebindMapId, target->m_homebindX, target->m_homebindY, target->m_homebindZ, target->GetOrientation());
             else
             {
                 CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHAR_HOMEBIND);
@@ -252,13 +245,13 @@ public:
 
             if (player->IsBeingTeleported())
             {
-                handler->PSendSysMessage(LANG_IS_TELEPORTED, plNameLink.c_str());
+                handler->PSendSysMessage(LANG_IS_TELEPORTED, plNameLink);
                 continue;
             }
 
-            handler->PSendSysMessage(LANG_TELEPORTING_TO, plNameLink.c_str(), "", tele->name.c_str());
+            handler->PSendSysMessage(LANG_TELEPORTING_TO, plNameLink.c_str(), "", tele->name);
             if (handler->needReportToTarget(player))
-                ChatHandler(player->GetSession()).PSendSysMessage(LANG_TELEPORTED_TO_BY, nameLink.c_str());
+                ChatHandler(player->GetSession()).PSendSysMessage(LANG_TELEPORTED_TO_BY, nameLink);
 
             // stop flight if need
             if (target->IsInFlight())

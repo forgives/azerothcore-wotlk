@@ -15,11 +15,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "ruins_of_ahnqiraj.h"
 #include "CreatureScript.h"
 #include "ScriptedCreature.h"
 #include "SpellScript.h"
 #include "SpellScriptLoader.h"
-#include "ruins_of_ahnqiraj.h"
 
 enum Spells
 {
@@ -50,16 +50,10 @@ struct npc_hivezara_stinger : public ScriptedAI
 
         scheduler.Schedule(5s, [this](TaskContext context)
         {
-            Unit* target = SelectTarget(SelectTargetMethod::Random, 1, [&](Unit* u)
-            {
-                return u && !u->IsPet() && u->IsWithinDist2d(me, 20.f) && u->HasAura(SPELL_HIVEZARA_CATALYST);
-            });
+            Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 20.0f, true, false, SPELL_HIVEZARA_CATALYST);
             if (!target)
             {
-                target = SelectTarget(SelectTargetMethod::Random, 1, [&](Unit* u)
-                {
-                    return u && !u->IsPet() && u->IsWithinDist2d(me, 20.f);
-                });
+                target = SelectTarget(SelectTargetMethod::Random, 0, 20.0f, true, false);
             }
 
             if (target)
@@ -161,4 +155,3 @@ void AddSC_ruins_of_ahnqiraj()
     RegisterRuinsOfAhnQirajCreatureAI(npc_obsidian_destroyer);
     RegisterSpellScript(spell_drain_mana);
 }
-

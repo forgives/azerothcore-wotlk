@@ -15,13 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-Name: guild_commandscript
-%Complete: 100
-Comment: All guild related commands
-Category: commandscripts
-EndScriptData */
-
 #include "Chat.h"
 #include "CommandScript.h"
 #include "Guild.h"
@@ -81,11 +74,11 @@ public:
 
         if (sGuildMgr->GetGuildByName(guildName))
         {
-            handler->SendErrorMessage(LANG_GUILD_RENAME_ALREADY_EXISTS);
+            handler->SendErrorMessage(LANG_GUILD_RENAME_ALREADY_EXISTS, guildName);
             return false;
         }
 
-        if (sObjectMgr->IsReservedName(guildName) || sObjectMgr->IsProfanityName(guildName) || !sObjectMgr->IsValidCharterName(guildName))
+        if (!sObjectMgr->IsValidCharterName(guildName))
         {
             handler->SendErrorMessage(LANG_BAD_VALUE);
             return false;
@@ -239,11 +232,11 @@ public:
             return false;
 
         // Display Guild Information
-        handler->PSendSysMessage(LANG_GUILD_INFO_NAME, guild->GetName().c_str(), guild->GetId()); // Guild Id + Name
+        handler->PSendSysMessage(LANG_GUILD_INFO_NAME, guild->GetName(), guild->GetId()); // Guild Id + Name
 
         std::string guildMasterName;
         if (sCharacterCache->GetCharacterNameByGuid(guild->GetLeaderGUID(), guildMasterName))
-            handler->PSendSysMessage(LANG_GUILD_INFO_GUILD_MASTER, guildMasterName.c_str(), guild->GetLeaderGUID().GetCounter()); // Guild Master
+            handler->PSendSysMessage(LANG_GUILD_INFO_GUILD_MASTER, guildMasterName, guild->GetLeaderGUID().ToString()); // Guild Master
 
         // Format creation date
         char createdDateStr[20];
@@ -254,8 +247,22 @@ public:
         handler->PSendSysMessage(LANG_GUILD_INFO_CREATION_DATE, createdDateStr); // Creation Date
         handler->PSendSysMessage(LANG_GUILD_INFO_MEMBER_COUNT, guild->GetMemberCount()); // Number of Members
         handler->PSendSysMessage(LANG_GUILD_INFO_BANK_GOLD, guild->GetTotalBankMoney() / 100 / 100); // Bank Gold (in gold coins)
-        handler->PSendSysMessage(LANG_GUILD_INFO_MOTD, guild->GetMOTD().c_str()); // Message of the Day
-        handler->PSendSysMessage(LANG_GUILD_INFO_EXTRA_INFO, guild->GetInfo().c_str()); // Extra Information
+        handler->PSendSysMessage(LANG_GUILD_INFO_MOTD, guild->GetMOTD()); // Message of the Day
+        handler->PSendSysMessage(LANG_GUILD_INFO_EXTRA_INFO, guild->GetInfo()); // Extra Information
+
+        QueryResult result = CharacterDatabase.Query("SELECT rid, rname FROM guild_rank WHERE guildid = {}", guild->GetId());
+        if (result)
+        {
+            handler->PSendSysMessage(LANG_GUILD_INFO_RANKS);
+            do
+            {
+                Field* fields = result->Fetch();
+                uint32 rid = fields[0].Get<uint32>();
+                std::string rname = fields[1].Get<std::string>();
+
+                handler->PSendSysMessage(LANG_GUILD_INFO_RANKS_LIST, rid, rname);
+            } while (result->NextRow());
+        }
         return true;
     }
 };

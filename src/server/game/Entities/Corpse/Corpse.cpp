@@ -22,12 +22,11 @@
 #include "GameTime.h"
 #include "Log.h"
 #include "ObjectAccessor.h"
-#include "Opcodes.h"
 #include "Player.h"
 #include "UpdateMask.h"
 #include "World.h"
 
-Corpse::Corpse(CorpseType type) : WorldObject(type != CORPSE_BONES), m_type(type)
+Corpse::Corpse(CorpseType type) : WorldObject(), m_type(type)
 {
     m_objectType |= TYPEMASK_CORPSE;
     m_objectTypeId = TYPEID_CORPSE;
@@ -198,7 +197,7 @@ void Corpse::ResetGhostTime()
     m_time = GameTime::GetGameTime().count();
 }
 
-void Corpse::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* target) const
+void Corpse::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* target)
 {
     if (!target)
         return;

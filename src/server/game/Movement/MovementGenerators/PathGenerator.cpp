@@ -35,7 +35,7 @@ PathGenerator::PathGenerator(WorldObject const* owner) :
     memset(_pathPolyRefs, 0, sizeof(_pathPolyRefs));
 
     uint32 mapId = _source->GetMapId();
-    //if (DisableMgr::IsPathfindingEnabled(_sourceUnit->FindMap()))
+    //if (sDisableMgr->IsPathfindingEnabled(_sourceUnit->FindMap()))
     {
         MMAP::MMapMgr* mmap = MMAP::MMapFactory::createOrGetMMapMgr();
         _navMesh = mmap->GetNavMesh(mapId);
@@ -556,7 +556,7 @@ void PathGenerator::BuildPointPath(const float* startPoint, const float* endPoin
     }
 
     // Special case with start and end positions very close to each other
-    if (_polyLength == 1 && pointCount == 1)
+    if (_polyLength == 1 && pointCount == 1 && !(dtResult & DT_SLOPE_TOO_STEEP))
     {
         // First point is start position, append end position
         dtVcopy(&pathPoints[1 * VERTEX_SIZE], endPoint);
@@ -564,6 +564,22 @@ void PathGenerator::BuildPointPath(const float* startPoint, const float* endPoin
     }
     else if (pointCount < 2 || dtStatusFailed(dtResult))
     {
+        // If its too steep, just return incomplete path.
+        if (pointCount > 0 && dtResult & DT_SLOPE_TOO_STEEP)
+        {
+            _pathPoints.resize(pointCount);
+            for (uint32 i = 0; i < pointCount; ++i)
+                _pathPoints[i] = G3D::Vector3(pathPoints[i * VERTEX_SIZE + 2], pathPoints[i * VERTEX_SIZE], pathPoints[i * VERTEX_SIZE + 1]);
+
+            NormalizePath();
+
+            // first point is always our current location - we need the next one
+            SetActualEndPosition(_pathPoints[pointCount - 1]);
+
+            _type = PathType(_type | PATHFIND_INCOMPLETE);
+            return;
+        }
+
         // only happens if pass bad data to findStraightPath or navmesh is broken
         // single point paths can be generated here
         /// @todo check the exact cases
@@ -636,7 +652,7 @@ void PathGenerator::CreateFilter()
     uint16 includeFlags = 0;
     uint16 excludeFlags = 0;
 
-    if (_source->GetTypeId() == TYPEID_UNIT)
+    if (_source->IsCreature())
     {
         Creature* creature = (Creature*)_source;
         if (creature->CanWalk())
@@ -884,7 +900,9 @@ dtStatus PathGenerator::FindSmoothPath(float const* startPos, float const* endPo
 
         if (canCheckSlope && !IsSwimmableSegment(iterPos, steerPos) && !IsWalkableClimb(iterPos, steerPos))
         {
-            return DT_FAILURE;
+            nsmoothPath--;
+            *smoothPathSize = nsmoothPath;
+            return DT_FAILURE | DT_SLOPE_TOO_STEEP;
         }
 
         // Handle end of path and off-mesh links when close enough.
@@ -1038,7 +1056,7 @@ void PathGenerator::ShortenPathUntilDist(G3D::Vector3 const& target, float dist)
     if ((*_pathPoints.rbegin() - target).squaredLength() >= distSq)
         return;
 
-    size_t i = _pathPoints.size() - 1;
+    std::size_t i = _pathPoints.size() - 1;
     float x, y, z, collisionHeight = _source->GetCollisionHeight();
     // find the first i s.t.:
     //  - _pathPoints[i] is still too close

@@ -28,7 +28,7 @@ enum CalendarMailAnswers
 {
     // else
     CALENDAR_EVENT_REMOVED_MAIL_SUBJECT     = 0,
-    // if ( *(_DWORD *)(a1 + 8292) & 0x100 )
+    // if (*(_DWORD *)(a1 + 8292) & 0x100 )
     CALENDAR_INVITE_REMOVED_MAIL_SUBJECT    = 0x100
 };
 
@@ -293,7 +293,7 @@ public:
 
     void LoadFromDB();
 
-    CalendarEvent* GetEvent(uint64 eventId);
+    CalendarEvent* GetEvent(uint64 eventId, CalendarEventStore::iterator* it = nullptr);
     CalendarEventStore const& GetEvents() const { return _events; }
     CalendarEventStore GetEventsCreatedBy(ObjectGuid guid, bool includeGuildEvents = false);
     CalendarEventStore GetPlayerEvents(ObjectGuid guid);
@@ -314,8 +314,8 @@ public:
     uint32 GetPlayerNumPending(ObjectGuid guid);
 
     void AddEvent(CalendarEvent* calendarEvent, CalendarSendEventType sendType);
-    void RemoveEvent(uint64 eventId, ObjectGuid remover);
-    void RemoveEvent(CalendarEvent* calendarEvent, ObjectGuid remover);
+    CalendarEventStore::iterator RemoveEvent(uint64 eventId, ObjectGuid remover);
+    CalendarEventStore::iterator RemoveEvent(CalendarEvent* calendarEvent, ObjectGuid remover, CalendarEventStore::const_iterator* currIt = nullptr);
     void UpdateEvent(CalendarEvent* calendarEvent);
 
     void AddInvite(CalendarEvent* calendarEvent, CalendarInvite* invite, CharacterDatabaseTransaction trans = nullptr);

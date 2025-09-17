@@ -1,14 +1,15 @@
 ARG UBUNTU_VERSION=22.04 # lts
-ARG TZ=Etc/UTC
 
 # This target lays out the general directory skeleton for AzerothCore,
 # This target isn't intended to be directly used
-FROM ubuntu:$UBUNTU_VERSION as skeleton
+FROM ubuntu:$UBUNTU_VERSION AS skeleton
 
+# Note: ARG instructions defined after FROM are available in this build stage.
+# Placing ARG TZ here (after FROM) ensures it is accessible for configuring the timezone below.
+ARG TZ=Etc/UTC
 ARG DOCKER=1
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV TZ=$TZ
 ENV AC_FORCE_CREATE_DB=1
 
 RUN mkdir -pv \
@@ -29,17 +30,18 @@ RUN mkdir -pv \
         /azerothcore/build
 
 # Configure Timezone
-RUN apt-get update                                          \
-    && apt-get install -y tzdata ca-certificates            \
-    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime   \
-    && echo $TZ > /etc/timezone                         \
-    && dpkg-reconfigure --frontend noninteractive tzdata
+RUN apt-get update                                                       \
+    && apt-get install -y --no-install-recommends tzdata ca-certificates \
+    && ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime                  \
+    && echo "$TZ" > /etc/timezone                                          \
+    && dpkg-reconfigure --frontend noninteractive tzdata                 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /azerothcore
 
 # This target builds the docker image
 # This target can be useful to inspect the explicit outputs from the build,
-FROM skeleton as build
+FROM skeleton AS build
 
 ARG CTOOLS_BUILD="all"
 ARG CTYPE="RelWithDebInfo"
@@ -106,7 +108,7 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
 # Base runtime for services #
 #############################
 
-FROM skeleton as runtime
+FROM skeleton AS runtime
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
@@ -144,8 +146,8 @@ ENTRYPOINT ["/usr/bin/env", "bash", "/azerothcore/entrypoint.sh"]
 # Auth Server #
 ###############
 
-FROM runtime as authserver
-LABEL description "AzerothCore Auth Server"
+FROM runtime AS authserver
+LABEL description="AzerothCore Auth Server"
 
 ENV ACORE_COMPONENT=authserver
 # Don't run database migrations. We can leave that up to the db-import container
@@ -165,9 +167,9 @@ CMD ["authserver"]
 # World Server #
 ################
 
-FROM runtime as worldserver
+FROM runtime AS worldserver
 
-LABEL description "AzerothCore World Server"
+LABEL description="AzerothCore World Server"
 
 ENV ACORE_COMPONENT=worldserver
 # Don't run database migrations. We can leave that up to the db-import container
@@ -188,9 +190,9 @@ CMD ["worldserver"]
 # DB Import #
 #############
 
-FROM runtime as db-import
+FROM runtime AS db-import
 
-LABEL description "AzerothCore Database Import tool"
+LABEL description="AzerothCore Database Import tool"
 
 USER $DOCKER_USER
 
@@ -199,17 +201,20 @@ ENV ACORE_COMPONENT=dbimport
 COPY --chown=$DOCKER_USER:$DOCKER_USER \
     data data
 
+COPY --chown=$DOCKER_USER:$DOCKER_USER \
+    modules modules
+
 COPY --chown=$DOCKER_USER:$DOCKER_USER\
      --from=build \
      /azerothcore/env/dist/bin/dbimport /azerothcore/env/dist/bin/dbimport
 
-CMD /azerothcore/env/dist/bin/dbimport
+CMD [ "/azerothcore/env/dist/bin/dbimport" ]
 
 ###############
 # Client Data #
 ###############
 
-FROM skeleton as client-data
+FROM skeleton AS client-data
 
 LABEL description="AzerothCore client-data"
 
@@ -225,15 +230,15 @@ VOLUME /azerothcore/env/dist/data
 
 USER $DOCKER_USER
 
-CMD bash -c "source /azerothcore/apps/installer/includes/functions.sh && inst_download_client_data"
+CMD ["bash",  "-c", "source /azerothcore/apps/installer/includes/functions.sh && inst_download_client_data" ]
 
 ##################
 # Map Extractors #
 ##################
 
-FROM runtime as tools
+FROM runtime AS tools
 
-LABEL description "AzerothCore Tools"
+LABEL description="AzerothCore Tools"
 
 WORKDIR /azerothcore/env/dist/
 

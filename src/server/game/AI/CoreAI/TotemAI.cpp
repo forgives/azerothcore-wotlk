@@ -104,7 +104,7 @@ void TotemAI::UpdateAI(uint32 /*diff*/)
         victim = nullptr;
         Acore::NearestAttackableUnitInObjectRangeCheck u_check(me, me, max_range);
         Acore::UnitLastSearcher<Acore::NearestAttackableUnitInObjectRangeCheck> checker(me, victim, u_check);
-        Cell::VisitAllObjects(me, checker, max_range);
+        Cell::VisitObjects(me, checker, max_range);
     }
 
     if (!victim && me->GetCharmerOrOwnerOrSelf()->IsInCombat())
@@ -129,7 +129,7 @@ void TotemAI::UpdateAI(uint32 /*diff*/)
 void TotemAI::AttackStart(Unit* /*victim*/)
 {
     // Sentry totem sends ping on attack
-    if (me->GetEntry() == SENTRY_TOTEM_ENTRY && me->GetOwner()->GetTypeId() == TYPEID_PLAYER)
+    if (me->GetEntry() == SENTRY_TOTEM_ENTRY && me->GetOwner()->IsPlayer())
     {
         WorldPacket data(MSG_MINIMAP_PING, (8 + 4 + 4));
         data << me->GetGUID();

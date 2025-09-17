@@ -55,14 +55,13 @@ void ScriptMgr::OnBeforeCreatureSelectLevel(const CreatureTemplate* cinfo, Creat
     {
         script->OnBeforeCreatureSelectLevel(cinfo, creature, level);
     });
-
 }
 
-void ScriptMgr::Creature_SelectLevel(const CreatureTemplate* cinfo, Creature* creature)
+void ScriptMgr::OnCreatureSelectLevel(const CreatureTemplate* cinfo, Creature* creature)
 {
     ExecuteScript<AllCreatureScript>([&](AllCreatureScript* script)
     {
-        script->Creature_SelectLevel(cinfo, creature);
+        script->OnCreatureSelectLevel(cinfo, creature);
     });
 }
 

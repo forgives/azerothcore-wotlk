@@ -19,14 +19,7 @@
 #define DEF_HALLS_OF_REFLECTION_H
 
 #include "CreatureAIImpl.h"
-#include "CreatureScript.h"
-#include "PassiveAI.h"
 #include "Player.h"
-#include "ScriptedCreature.h"
-#include "ScriptedGossip.h"
-#include "SpellAuraEffects.h"
-#include "SpellAuras.h"
-#include "SpellScript.h"
 
 #define DataHeader "HOR"
 
@@ -105,12 +98,6 @@ enum GameObjects
     GO_CHEST_NORMAL                               = 201710,
     GO_CHEST_HEROIC                               = 202336,
     GO_PORTAL_TO_DALARAN                          = 195682,
-};
-
-enum HorWorldStates
-{
-    WORLD_STATE_HOR_COUNTER                         = 4884,
-    WORLD_STATE_HOR_WAVE_COUNT                      = 4882,
 };
 
 enum BatteredHiltStatusFlags

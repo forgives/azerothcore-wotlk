@@ -15,12 +15,14 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "Chat.h"
 #include "DatabaseEnv.h"
 #include "Group.h"
 #include "GroupMgr.h"
 #include "LFGMgr.h"
 #include "Language.h"
 #include "Log.h"
+#include "MapMgr.h"
 #include "MiscPackets.h"
 #include "ObjectMgr.h"
 #include "Opcodes.h"
@@ -84,7 +86,7 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recvData)
         return;
     }
 
-    if (!sScriptMgr->CanGroupInvite(invitingPlayer, membername))
+    if (!sScriptMgr->OnPlayerCanGroupInvite(invitingPlayer, membername))
         return;
 
     if (invitingPlayer->IsSpectator() || invitedPlayer->IsSpectator())
@@ -109,12 +111,6 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recvData)
     if (invitingPlayer->GetInstanceId() != 0 && invitedPlayer->GetInstanceId() != 0 && invitingPlayer->GetInstanceId() != invitedPlayer->GetInstanceId() && invitingPlayer->GetMapId() == invitedPlayer->GetMapId())
     {
         SendPartyResult(PARTY_OP_INVITE, membername, ERR_TARGET_NOT_IN_INSTANCE_S);
-        return;
-    }
-    // just ignore us
-    if (invitedPlayer->GetInstanceId() != 0 && invitedPlayer->GetDungeonDifficulty() != invitingPlayer->GetDungeonDifficulty())
-    {
-        SendPartyResult(PARTY_OP_INVITE, membername, ERR_IGNORING_YOU_S);
         return;
     }
 
@@ -235,7 +231,7 @@ void WorldSession::HandleGroupAcceptOpcode(WorldPacket& recvData)
         return;
     }
 
-    if (!sScriptMgr->CanGroupAccept(GetPlayer(), group))
+    if (!sScriptMgr->OnPlayerCanGroupAccept(GetPlayer(), group))
         return;
 
     if (group->GetLeaderGUID() == GetPlayer()->GetGUID())
@@ -527,24 +523,17 @@ void WorldSession::HandleLootRoll(WorldPacket& recvData)
     }
 }
 
-void WorldSession::HandleMinimapPingOpcode(WorldPacket& recvData)
+void WorldSession::HandleMinimapPingOpcode(WorldPackets::Misc::MinimapPingClient& packet)
 {
-    if (!GetPlayer()->GetGroup())
+    if (!sMapMgr->IsValidMapCoord(GetPlayer()->GetMap()->GetId(), packet.MapX, packet.MapY))
         return;
 
-    float x, y;
-    recvData >> x;
-    recvData >> y;
+    Group* group = GetPlayer()->GetGroup();
 
-    /** error handling **/
-    /********************/
+    if (!group)
+        return;
 
-    // everything's fine, do it
-    WorldPacket data(MSG_MINIMAP_PING, (8 + 4 + 4));
-    data << GetPlayer()->GetGUID();
-    data << float(x);
-    data << float(y);
-    GetPlayer()->GetGroup()->BroadcastPacket(&data, true, -1, GetPlayer()->GetGUID());
+    group->DoMinimapPing(GetPlayer()->GetGUID(), packet.MapX, packet.MapY);
 }
 
 void WorldSession::HandleRandomRollOpcode(WorldPackets::Misc::RandomRollClient& packet)
@@ -554,10 +543,8 @@ void WorldSession::HandleRandomRollOpcode(WorldPackets::Misc::RandomRollClient& 
     maximum = packet.Max;
 
     /** error handling **/
-    if (minimum > maximum || maximum > 10000) // < 32768 for urand call
-    {
+    if (minimum > maximum || maximum > sWorld->getIntConfig(CONFIG_RANDOM_ROLL_MAXIMUM))
         return;
-    }
 
     GetPlayer()->DoRandomRoll(minimum, maximum);
 }
@@ -731,7 +718,7 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)
             // Check if player is in BG
             if (_player->InBattleground())
             {
-                _player->GetSession()->SendNotification(LANG_BG_READY_CHECK_ERROR);
+                ChatHandler(_player->GetSession()).SendNotification(LANG_BG_READY_CHECK_ERROR);
                 return;
             }
         }
@@ -961,7 +948,7 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPacket& recvData)
     recvData >> Guid;
 
     Player* player = HashMapHolder<Player>::Find(Guid);
-    if (!player)
+    if (!player || !player->IsInSameRaidWith(_player))
     {
         WorldPacket data(SMSG_PARTY_MEMBER_STATS_FULL, 3 + 4 + 2);
         data << uint8(0);                                   // only for SMSG_PARTY_MEMBER_STATS_FULL, probably arena/bg related
@@ -1030,7 +1017,7 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPacket& recvData)
     data << uint16(player->GetPositionY());                 // GROUP_UPDATE_FLAG_POSITION
 
     uint64 auraMask = 0;
-    size_t maskPos = data.wpos();
+    std::size_t maskPos = data.wpos();
     data << uint64(auraMask);                               // placeholder
     for (uint8 i = 0; i < MAX_AURAS_GROUP_UPDATE; ++i)
     {
@@ -1165,7 +1152,7 @@ void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recv_data)
     ObjectGuid guid1 = getGuid(playerName1);
     ObjectGuid guid2 = getGuid(playerName2);
 
-    if(!guid1 || !guid2)
+    if (!guid1 || !guid2)
     {
         SendPartyResult(PARTY_OP_SWAP, playerName1, ERR_GROUP_SWAP_FAILED);
         return;

@@ -18,14 +18,7 @@
 #ifndef RUBY_SANCTUM_H_
 #define RUBY_SANCTUM_H_
 
-#include "Creature.h"
 #include "CreatureAIImpl.h"
-#include "GameObjectAI.h"
-#include "Map.h"
-#include "Opcodes.h"
-#include "PassiveAI.h"
-#include "Player.h"
-#include "SpellScript.h"
 
 #define DataHeader "RS"
 
@@ -100,13 +93,6 @@ enum GameObjectsIds
     GO_BURNING_TREE_2                       = 203035,
     GO_BURNING_TREE_3                       = 203036,
     GO_BURNING_TREE_4                       = 203037
-};
-
-enum WorldStatesRS
-{
-    WORLDSTATE_CORPOREALITY_MATERIAL = 5049,
-    WORLDSTATE_CORPOREALITY_TWILIGHT = 5050,
-    WORLDSTATE_CORPOREALITY_TOGGLE   = 5051
 };
 
 enum InstanceSpell

@@ -15,6 +15,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "temple_of_ahnqiraj.h"
 #include "AreaTriggerScript.h"
 #include "CreatureScript.h"
 #include "MapReference.h"
@@ -22,7 +23,6 @@
 #include "ScriptedCreature.h"
 #include "SpellScript.h"
 #include "SpellScriptLoader.h"
-#include "temple_of_ahnqiraj.h"
 
 enum Spells
 {
@@ -98,7 +98,7 @@ struct npc_anubisath_defender : public ScriptedAI
         {
             scheduler.Schedule(6s, 10s, [this](TaskContext context)
             {
-                if (Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 1))
+                if (Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 0, 0.0f, false, false))
                     DoCast(target, SPELL_PLAGUE, true);
                 context.Repeat(6s, 10s);
             });
@@ -575,4 +575,3 @@ void AddSC_temple_of_ahnqiraj()
     RegisterSpellScript(spell_nullify);
     new at_battleguard_sartura();
 }
-

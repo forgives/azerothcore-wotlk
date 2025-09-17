@@ -29,7 +29,6 @@
 #include "Vehicle.h"
 #include "WaypointMgr.h"
 
-// Ours
 enum songOfWindandWater
 {
     NPC_SOWAW_WATER_ELEMENTAL           = 28999,
@@ -38,237 +37,31 @@ enum songOfWindandWater
     NPC_SOWAW_WATER_MODEL               = 20076,
 };
 
-class spell_q12726_song_of_wind_and_water : public SpellScriptLoader
+class spell_q12726_song_of_wind_and_water : public SpellScript
 {
-public:
-    spell_q12726_song_of_wind_and_water() : SpellScriptLoader("spell_q12726_song_of_wind_and_water") { }
+    PrepareSpellScript(spell_q12726_song_of_wind_and_water);
 
-    class spell_q12726_song_of_wind_and_water_SpellScript : public SpellScript
+    void HandleHealPct(SpellEffIndex /*effIndex*/)
     {
-        PrepareSpellScript(spell_q12726_song_of_wind_and_water_SpellScript);
-
-        void HandleHealPct(SpellEffIndex /*effIndex*/)
+        if (Creature* cr = GetHitCreature())
         {
-            if (Creature* cr = GetHitCreature())
+            //cr->UpdateEntry((cr->GetEntry() == NPC_SOWAW_WATER_ELEMENTAL ? NPC_SOWAW_WIND_ELEMENTAL : NPC_SOWAW_WATER_ELEMENTAL));
+            cr->SetDisplayId(cr->GetDisplayId() == NPC_SOWAW_WATER_MODEL ? NPC_SOWAW_WIND_MODEL : NPC_SOWAW_WATER_MODEL);
+            if (Player* player = cr->GetCharmerOrOwnerPlayerOrPlayerItself())
             {
-                //cr->UpdateEntry((cr->GetEntry() == NPC_SOWAW_WATER_ELEMENTAL ? NPC_SOWAW_WIND_ELEMENTAL : NPC_SOWAW_WATER_ELEMENTAL));
-                cr->SetDisplayId(cr->GetDisplayId() == NPC_SOWAW_WATER_MODEL ? NPC_SOWAW_WIND_MODEL : NPC_SOWAW_WATER_MODEL);
-                if (Player* player = cr->GetCharmerOrOwnerPlayerOrPlayerItself())
-                {
-                    player->KilledMonsterCredit(cr->GetDisplayId() == NPC_SOWAW_WATER_MODEL ? 29008 : 29009);
-                    CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(cr->GetDisplayId() == NPC_SOWAW_WIND_MODEL ? NPC_SOWAW_WIND_ELEMENTAL : NPC_SOWAW_WATER_ELEMENTAL);
-                    for (uint8 i = 0; i < MAX_CREATURE_SPELLS; ++i)
-                        cr->m_spells[i] = ct->spells[i];
+                player->KilledMonsterCredit(cr->GetDisplayId() == NPC_SOWAW_WATER_MODEL ? 29008 : 29009);
+                CreatureTemplate const* ct = sObjectMgr->GetCreatureTemplate(cr->GetDisplayId() == NPC_SOWAW_WIND_MODEL ? NPC_SOWAW_WIND_ELEMENTAL : NPC_SOWAW_WATER_ELEMENTAL);
+                for (uint8 i = 0; i < MAX_CREATURE_SPELLS; ++i)
+                    cr->m_spells[i] = ct->spells[i];
 
-                    player->VehicleSpellInitialize();
-                }
+                player->VehicleSpellInitialize();
             }
         }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_q12726_song_of_wind_and_water_SpellScript::HandleHealPct, EFFECT_2, SPELL_EFFECT_HEAL_PCT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
-    {
-        return new spell_q12726_song_of_wind_and_water_SpellScript();
     }
-};
 
-enum AHerosBurden
-{
-    SPELL_TOMB_OF_THE_HEARTLESS = 52182,
-    SPELL_ARTRUIS_FROST_NOVA    = 11831,
-    SPELL_ARTRUIS_FROSTBOLT     = 15530,
-    SPELL_ARTRUIS_ICE_LANCE     = 54261,
-    SPELL_ARTRUIS_ICY_VEINS     = 54792,
-    SPELL_ARTRUIS_BINDING       = 52185,
-
-    NPC_JALOOT                  = 28667,
-    NPC_ZEPIK                   = 28668,
-    NPC_ARTRUIS                 = 28659,
-
-    EVENT_CAST_FROST_BOLT       = 1,
-    EVENT_CAST_FROST_NOVA       = 2,
-    EVENT_CAST_ICE_LANCE        = 3,
-    EVENT_CAST_ICY_VEINS        = 4,
-    EVENT_ARTRUIS_HP_CHECK      = 5,
-    EVENT_ARTRUIS_TALK1         = 6,
-    EVENT_ARTRUIS_TALK2         = 7,
-    EVENT_ARTRUIS_TALK3         = 8,
-
-    ACTION_BIND_MINIONS         = 1,
-    ACTION_MAKE_FRIENDLY        = 2,
-
-    GO_ARTRUIS_PHYLACTERY       = 190777,
-
-    // Texts
-    SAY_TURNED_FRIENDLY         = 0, // Zepik and Jaloot
-
-    SAY_ARTRUIS_AGGRO           = 0,
-    SAY_ARTRUIS_TALK_1          = 1,
-    SAY_ARTRUIS_TALK_2          = 2,
-    SAY_ARTRUIS_TALK_3          = 3,
-    SAY_ARTRUIS_SHIELD          = 4, // Boss emote
-    SAY_ARTRUIS_TALK_4          = 5,
-};
-
-class npc_artruis_the_hearthless : public CreatureScript
-{
-public:
-    npc_artruis_the_hearthless() : CreatureScript("npc_artruis_the_hearthless") { }
-
-    struct npc_artruis_the_hearthlessAI : public ScriptedAI
+    void Register() override
     {
-        npc_artruis_the_hearthlessAI(Creature* creature) : ScriptedAI(creature), summons(me) { }
-
-        EventMap events;
-        SummonList summons;
-        void Reset() override
-        {
-            events.Reset();
-            summons.DespawnAll();
-            me->SetControlled(false, UNIT_STATE_STUNNED);
-
-            Creature* cr;
-            if ((cr = me->SummonCreature(NPC_JALOOT, 5616.91f, 3772.67f, -94.26f, 1.78f)))
-            {
-                summons.Summon(cr);
-                cr->CastSpell(cr, SPELL_TOMB_OF_THE_HEARTLESS, true);
-                cr->SetFaction(me->GetFaction());
-            }
-            if ((cr = me->SummonCreature(NPC_ZEPIK, 5631.63f, 3794.36f, -92.24f, 3.45f)))
-            {
-                summons.Summon(cr);
-                cr->CastSpell(cr, SPELL_TOMB_OF_THE_HEARTLESS, true);
-                cr->SetFaction(me->GetFaction());
-            }
-        }
-
-        void MoveInLineOfSight(Unit* who) override
-        {
-            if (who->GetEntry() == NPC_JALOOT || who->GetEntry() == NPC_ZEPIK)
-                return;
-
-            ScriptedAI::MoveInLineOfSight(who);
-        }
-
-        void JustEngagedWith(Unit*  /*who*/) override
-        {
-            Talk(SAY_ARTRUIS_AGGRO);
-            me->CastSpell(me, SPELL_ARTRUIS_ICY_VEINS, true);
-            events.RescheduleEvent(EVENT_CAST_FROST_BOLT, 4s);
-            events.RescheduleEvent(EVENT_CAST_FROST_NOVA, 15s);
-            events.RescheduleEvent(EVENT_CAST_ICE_LANCE, 8500ms);
-            events.RescheduleEvent(EVENT_CAST_ICY_VEINS, 30s);
-            events.RescheduleEvent(EVENT_ARTRUIS_HP_CHECK, 1s);
-            events.RescheduleEvent(EVENT_ARTRUIS_TALK1, 6s);
-        }
-
-        void JustDied(Unit* /*killer*/) override
-        {
-            if (GameObject* go = me->SummonGameObject(GO_ARTRUIS_PHYLACTERY, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 600000))
-                me->RemoveGameObject(go, false);
-        }
-
-        void SummonedCreatureDies(Creature* summon, Unit*) override
-        {
-            SummonsAction(ACTION_MAKE_FRIENDLY);
-            me->RemoveAurasDueToSpell(SPELL_ARTRUIS_BINDING);
-            summon->DespawnOrUnsummon(60000);
-            me->SetControlled(false, UNIT_STATE_STUNNED);
-        }
-
-        void SummonsAction(uint8 action)
-        {
-            if (!summons.empty())
-            {
-                if (action == ACTION_BIND_MINIONS)
-                    me->CastSpell(me, SPELL_ARTRUIS_BINDING, true);
-
-                for (ObjectGuid const& guid : summons)
-                {
-                    Creature* minion = ObjectAccessor::GetCreature(*me, guid);
-                    if (minion && minion->IsAlive())
-                    {
-                        if (action == ACTION_BIND_MINIONS)
-                        {
-                            minion->RemoveAurasDueToSpell(SPELL_TOMB_OF_THE_HEARTLESS);
-                            if (me->GetVictim())
-                                minion->AI()->AttackStart(me->GetVictim());
-                        }
-                        else if (action == ACTION_MAKE_FRIENDLY && me->GetVictim())
-                        {
-                            minion->AI()->Talk(SAY_TURNED_FRIENDLY);
-                            minion->RemoveAurasDueToSpell(SPELL_ARTRUIS_BINDING);
-                            minion->SetFaction(me->GetVictim()->GetFaction());
-                            minion->AddThreat(me, 100000.0f);
-                            minion->AI()->AttackStart(me);
-                            minion->DespawnOrUnsummon(900000);
-                            events.RescheduleEvent(EVENT_ARTRUIS_TALK3, 5s);
-                        }
-                    }
-                }
-            }
-        }
-
-        void UpdateAI(uint32 diff) override
-        {
-            if (!UpdateVictim())
-                return;
-
-            events.Update(diff);
-            if (me->HasUnitState(UNIT_STATE_CASTING))
-                return;
-
-            switch (events.ExecuteEvent())
-            {
-                case EVENT_ARTRUIS_HP_CHECK:
-                    if (me->GetHealthPct() <= 30)
-                    {
-                        me->SetControlled(true, UNIT_STATE_STUNNED);
-                        Talk(SAY_ARTRUIS_SHIELD);
-                        Talk(SAY_ARTRUIS_TALK_3);
-                        SummonsAction(ACTION_BIND_MINIONS);
-                        break;
-                    }
-                    events.Repeat(1s);
-                    break;
-                case EVENT_ARTRUIS_TALK1:
-                    Talk(SAY_ARTRUIS_TALK_1);
-                    events.RescheduleEvent(EVENT_ARTRUIS_TALK2, 10s);
-                    break;
-                case EVENT_ARTRUIS_TALK2:
-                    Talk(SAY_ARTRUIS_TALK_2);
-                    break;
-                case EVENT_ARTRUIS_TALK3:
-                    Talk(SAY_ARTRUIS_TALK_4);
-                    break;
-                case EVENT_CAST_FROST_BOLT:
-                    me->CastSpell(me->GetVictim(), SPELL_ARTRUIS_FROSTBOLT, false);
-                    events.Repeat(4s);
-                    break;
-                case EVENT_CAST_ICE_LANCE:
-                    me->CastSpell(me->GetVictim(), SPELL_ARTRUIS_ICE_LANCE, false);
-                    events.Repeat(8500ms);
-                    break;
-                case EVENT_CAST_FROST_NOVA:
-                    me->CastSpell(me, SPELL_ARTRUIS_FROST_NOVA, false);
-                    events.Repeat(15s);
-                    break;
-                case EVENT_CAST_ICY_VEINS:
-                    me->CastSpell(me, SPELL_ARTRUIS_ICY_VEINS, false);
-                    events.Repeat(30s);
-                    break;
-            }
-        }
-    };
-
-    CreatureAI* GetAI(Creature* creature) const override
-    {
-        return new npc_artruis_the_hearthlessAI(creature);
+        OnEffectHitTarget += SpellEffectFn(spell_q12726_song_of_wind_and_water::HandleHealPct, EFFECT_2, SPELL_EFFECT_HEAL_PCT);
     }
 };
 
@@ -411,7 +204,7 @@ public:
                 if (timer)
                 {
                     timer -= diff;
-                    if( timer < 0 )
+                    if (timer < 0)
                         timer = 0;
                 }
                 else if (success)
@@ -533,7 +326,6 @@ public:
     }
 };
 
-// Theirs
 /*######
 ## npc_vekjik
 ######*/
@@ -1140,64 +932,58 @@ enum MiscLifewarden
     SPELL_WILD_GROWTH = 52948,
 };
 
-class spell_q12620_the_lifewarden_wrath : public SpellScriptLoader
+class spell_q12620_the_lifewarden_wrath : public SpellScript
 {
-public:
-    spell_q12620_the_lifewarden_wrath() : SpellScriptLoader("spell_q12620_the_lifewarden_wrath") { }
+    PrepareSpellScript(spell_q12620_the_lifewarden_wrath);
 
-    class spell_q12620_the_lifewarden_wrath_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_q12620_the_lifewarden_wrath_SpellScript);
+        return ValidateSpellInfo({ SPELL_FREYA_DUMMY, SPELL_FREYA_DUMMY_TRIGGER, SPELL_LASHER_EMERGE, SPELL_WILD_GROWTH, SPELL_LIFEFORCE });
+    }
 
-        void HandleSendEvent(SpellEffIndex effIndex)
+    void HandleSendEvent(SpellEffIndex effIndex)
+    {
+        PreventHitDefaultEffect(effIndex);
+
+        if (Unit* caster = GetCaster())
         {
-            PreventHitDefaultEffect(effIndex);
-
-            if (Unit* caster = GetCaster())
+            if (Creature* presence = caster->FindNearestCreature(NPC_PRESENCE, 50.0f))
             {
-                if (Creature* presence = caster->FindNearestCreature(NPC_PRESENCE, 50.0f))
+                presence->AI()->Talk(WHISPER_ACTIVATE, caster);
+                presence->CastSpell(presence, SPELL_FREYA_DUMMY, true); // will target plants
+                // Freya Dummy could be scripted with the following code
+
+                // Revive plants
+                std::list<Creature*> servants;
+                GetCaster()->GetCreatureListWithEntryInGrid(servants, NPC_SERVANT, 200.0f);
+                for (std::list<Creature*>::iterator itr = servants.begin(); itr != servants.end(); ++itr)
                 {
-                    presence->AI()->Talk(WHISPER_ACTIVATE, caster);
-                    presence->CastSpell(presence, SPELL_FREYA_DUMMY, true); // will target plants
-                    // Freya Dummy could be scripted with the following code
+                    // Couldn't find a spell that does this
+                    if ((*itr)->isDead())
+                        (*itr)->Respawn(true);
 
-                    // Revive plants
-                    std::list<Creature*> servants;
-                    GetCaster()->GetCreatureListWithEntryInGrid(servants, NPC_SERVANT, 200.0f);
-                    for (std::list<Creature*>::iterator itr = servants.begin(); itr != servants.end(); ++itr)
-                    {
-                        // Couldn't find a spell that does this
-                        if ((*itr)->isDead())
-                            (*itr)->Respawn(true);
+                    (*itr)->CastSpell(*itr, SPELL_FREYA_DUMMY_TRIGGER, true);
+                    (*itr)->CastSpell(*itr, SPELL_LASHER_EMERGE, false);
+                    (*itr)->CastSpell(*itr, SPELL_WILD_GROWTH, false);
 
-                        (*itr)->CastSpell(*itr, SPELL_FREYA_DUMMY_TRIGGER, true);
-                        (*itr)->CastSpell(*itr, SPELL_LASHER_EMERGE, false);
-                        (*itr)->CastSpell(*itr, SPELL_WILD_GROWTH, false);
-
-                        if (Unit* target = (*itr)->SelectNearestTarget(150.0f))
-                            (*itr)->AI()->AttackStart(target);
-                    }
-
-                    // Kill nearby enemies
-                    std::list<Creature*> saboteurs;
-                    caster->GetCreatureListWithEntryInGrid(saboteurs, NPC_SABOTEUR, 200.0f);
-                    for (std::list<Creature*>::iterator itr = saboteurs.begin(); itr != saboteurs.end(); ++itr)
-                        if ((*itr)->IsAlive())
-                            // Lifeforce has a cast duration, it should be cast at all saboteurs one by one
-                            presence->CastSpell((*itr), SPELL_LIFEFORCE, false);
+                    if (Unit* target = (*itr)->SelectNearestTarget(150.0f))
+                        (*itr)->AI()->AttackStart(target);
                 }
+
+                // Kill nearby enemies
+                std::list<Creature*> saboteurs;
+                caster->GetCreatureListWithEntryInGrid(saboteurs, NPC_SABOTEUR, 200.0f);
+                for (std::list<Creature*>::iterator itr = saboteurs.begin(); itr != saboteurs.end(); ++itr)
+                    if ((*itr)->IsAlive())
+                        // Lifeforce has a cast duration, it should be cast at all saboteurs one by one
+                        presence->CastSpell((*itr), SPELL_LIFEFORCE, false);
             }
         }
+    }
 
-        void Register() override
-        {
-            OnEffectHit += SpellEffectFn(spell_q12620_the_lifewarden_wrath_SpellScript::HandleSendEvent, EFFECT_0, SPELL_EFFECT_SEND_EVENT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void Register() override
     {
-        return new spell_q12620_the_lifewarden_wrath_SpellScript();
+        OnEffectHit += SpellEffectFn(spell_q12620_the_lifewarden_wrath::HandleSendEvent, EFFECT_0, SPELL_EFFECT_SEND_EVENT);
     }
 };
 
@@ -1228,101 +1014,95 @@ enum KickWhatKick
     SAY_DROSTAN_REPLY_MISS = 0,
 };
 
-class spell_q12589_shoot_rjr : public SpellScriptLoader
+class spell_q12589_shoot_rjr : public SpellScript
 {
-public:
-    spell_q12589_shoot_rjr() : SpellScriptLoader("spell_q12589_shoot_rjr") { }
+    PrepareSpellScript(spell_q12589_shoot_rjr);
 
-    class spell_q12589_shoot_rjr_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_q12589_shoot_rjr_SpellScript);
+        return ValidateSpellInfo({ SPELL_MISS_BIRD_APPLE, SPELL_BIRD_FALL, SPELL_MISS_APPLE, SPELL_HIT_APPLE, SPELL_APPLE_FALL });
+    }
 
-        SpellCastResult CheckCast()
+    SpellCastResult CheckCast()
+    {
+        if (Unit* target = GetExplTargetUnit())
+            if (target->GetEntry() == NPC_LUCKY_WILHELM)
+                return SPELL_CAST_OK;
+
+        SetCustomCastResultMessage(SPELL_CUSTOM_ERROR_MUST_TARGET_WILHELM);
+        return SPELL_FAILED_CUSTOM_ERROR;
+    }
+
+    void HandleDummy(SpellEffIndex /*effIndex*/)
+    {
+        uint32 roll = urand(1, 100);
+
+        uint8 ev;
+        if (roll <= 50)
+            ev = EVENT_MISS;
+        else if (roll <= 83)
+            ev = EVENT_HIT;
+        else
+            ev = EVENT_MISS_BIRD;
+
+        Unit* shooter = GetCaster();
+        Creature* wilhelm = GetHitUnit()->ToCreature();
+        Creature* apple = shooter->FindNearestCreature(NPC_APPLE, 30);
+        Creature* drostan = shooter->FindNearestCreature(NPC_DROSTAN, 30);
+
+        if (!wilhelm || !apple || !drostan)
+            return;
+
+        switch (ev)
         {
-            if (Unit* target = GetExplTargetUnit())
-                if (target->GetEntry() == NPC_LUCKY_WILHELM)
-                    return SPELL_CAST_OK;
+            case EVENT_MISS_BIRD:
+                {
+                    Creature* crunchy = shooter->FindNearestCreature(NPC_CRUNCHY, 30);
+                    Creature* bird = shooter->FindNearestCreature(NPC_THICKBIRD, 30);
 
-            SetCustomCastResultMessage(SPELL_CUSTOM_ERROR_MUST_TARGET_WILHELM);
-            return SPELL_FAILED_CUSTOM_ERROR;
-        }
-
-        void HandleDummy(SpellEffIndex /*effIndex*/)
-        {
-            uint32 roll = urand(1, 100);
-
-            uint8 ev;
-            if (roll <= 50)
-                ev = EVENT_MISS;
-            else if (roll <= 83)
-                ev = EVENT_HIT;
-            else
-                ev = EVENT_MISS_BIRD;
-
-            Unit* shooter = GetCaster();
-            Creature* wilhelm = GetHitUnit()->ToCreature();
-            Creature* apple = shooter->FindNearestCreature(NPC_APPLE, 30);
-            Creature* drostan = shooter->FindNearestCreature(NPC_DROSTAN, 30);
-
-            if (!wilhelm || !apple || !drostan)
-                return;
-
-            switch (ev)
-            {
-                case EVENT_MISS_BIRD:
+                    if (!bird || !crunchy)
+                        ; // fall to EVENT_MISS
+                    else
                     {
-                        Creature* crunchy = shooter->FindNearestCreature(NPC_CRUNCHY, 30);
-                        Creature* bird = shooter->FindNearestCreature(NPC_THICKBIRD, 30);
-
-                        if (!bird || !crunchy)
-                            ; // fall to EVENT_MISS
-                        else
-                        {
-                            shooter->CastSpell(bird, SPELL_MISS_BIRD_APPLE);
-                            bird->CastSpell(bird, SPELL_BIRD_FALL);
-                            wilhelm->AI()->Talk(SAY_WILHELM_MISS);
-                            drostan->AI()->Talk(SAY_DROSTAN_REPLY_MISS);
-
-                            Unit::Kill(bird, bird);
-                            crunchy->GetMotionMaster()->MovePoint(0, bird->GetPositionX(), bird->GetPositionY(),
-                                                                  bird->GetMapWaterOrGroundLevel(bird->GetPositionX(), bird->GetPositionY(), bird->GetPositionZ()));
-                            /// @todo Make crunchy perform emote eat when he reaches the bird
-
-                            break;
-                        }
-                        [[fallthrough]];
-                    }
-                case EVENT_MISS:
-                    {
-                        shooter->CastSpell(wilhelm, SPELL_MISS_APPLE);
+                        shooter->CastSpell(bird, SPELL_MISS_BIRD_APPLE);
+                        bird->CastSpell(bird, SPELL_BIRD_FALL);
                         wilhelm->AI()->Talk(SAY_WILHELM_MISS);
                         drostan->AI()->Talk(SAY_DROSTAN_REPLY_MISS);
-                        break;
-                    }
-                case EVENT_HIT:
-                    {
-                        shooter->CastSpell(apple, SPELL_HIT_APPLE);
-                        apple->CastSpell(apple, SPELL_APPLE_FALL);
-                        wilhelm->AI()->Talk(SAY_WILHELM_HIT);
-                        if (Player* player = shooter->ToPlayer())
-                            player->KilledMonsterCredit(NPC_APPLE);
-                        //apple->DespawnOrUnsummon(); zomg!
+
+                        Unit::Kill(bird, bird);
+                        crunchy->GetMotionMaster()->MovePoint(0, bird->GetPositionX(), bird->GetPositionY(),
+                                                              bird->GetMapWaterOrGroundLevel(bird->GetPositionX(), bird->GetPositionY(), bird->GetPositionZ()));
+                        /// @todo Make crunchy perform emote eat when he reaches the bird
 
                         break;
                     }
-            }
-        }
+                    [[fallthrough]];
+                }
+            case EVENT_MISS:
+                {
+                    shooter->CastSpell(wilhelm, SPELL_MISS_APPLE);
+                    wilhelm->AI()->Talk(SAY_WILHELM_MISS);
+                    drostan->AI()->Talk(SAY_DROSTAN_REPLY_MISS);
+                    break;
+                }
+            case EVENT_HIT:
+                {
+                    shooter->CastSpell(apple, SPELL_HIT_APPLE);
+                    apple->CastSpell(apple, SPELL_APPLE_FALL);
+                    wilhelm->AI()->Talk(SAY_WILHELM_HIT);
+                    if (Player* player = shooter->ToPlayer())
+                        player->KilledMonsterCredit(NPC_APPLE);
+                    //apple->DespawnOrUnsummon(); zomg!
 
-        void Register() override
-        {
-            OnCheckCast += SpellCheckCastFn(spell_q12589_shoot_rjr_SpellScript::CheckCast);
-            OnEffectHitTarget += SpellEffectFn(spell_q12589_shoot_rjr_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+                    break;
+                }
         }
-    };
+    }
 
-    SpellScript* GetSpellScript() const override
+    void Register() override
     {
-        return new spell_q12589_shoot_rjr_SpellScript();
+        OnCheckCast += SpellCheckCastFn(spell_q12589_shoot_rjr::CheckCast);
+        OnEffectHitTarget += SpellEffectFn(spell_q12589_shoot_rjr::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
     }
 };
 
@@ -1365,7 +1145,7 @@ public:
 
         void PassengerBoarded(Unit* passenger, int8 /*seatId*/, bool apply) override
         {
-            if (apply && passenger->GetTypeId() == TYPEID_PLAYER)
+            if (apply && passenger->IsPlayer())
             {
                 Movement::PointsArray pathPoints;
                 pathPoints.push_back(G3D::Vector3(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ()));
@@ -1424,7 +1204,7 @@ public:
             if (spell->Id == SPELL_LAND)
             {
                 Unit* passenger = me->GetVehicleKit()->GetPassenger(1); // player should be on seat 1
-                if (passenger && passenger->GetTypeId() == TYPEID_PLAYER)
+                if (passenger && passenger->IsPlayer())
                     passenger->CastSpell(passenger, SPELL_CREDIT, true);
 
                 me->DespawnOrUnsummon();
@@ -1450,42 +1230,31 @@ enum ShangoTracks
     SAY_INCORRECT_TRACKS   = 28635
 };
 
-class spell_shango_tracks : public SpellScriptLoader
+class spell_shango_tracks : public SpellScript
 {
-public:
-    spell_shango_tracks() : SpellScriptLoader("spell_shango_tracks") { }
+    PrepareSpellScript(spell_shango_tracks);
 
-    class spell_shango_tracks_SpellScript : public SpellScript
+    void HandleScript(SpellEffIndex /*effIndex*/)
     {
-        PrepareSpellScript(spell_shango_tracks_SpellScript);
-
-        void HandleScript(SpellEffIndex /*effIndex*/)
+        if (Unit* target = GetHitUnit())
         {
-            if (Unit* target = GetHitUnit())
+            switch (GetSpellInfo()->Id)
             {
-                switch (GetSpellInfo()->Id)
-                {
-                    case SPELL_CORRECT_TRACKS:
-                        target->Say(SAY_CORRECT_TRACKS, target);
-                        break;
-                    case SPELL_INCORRECT_TRACKS:
-                        target->Say(SAY_INCORRECT_TRACKS, target);
-                        break;
-                    default:
-                        break;
-                }
+                case SPELL_CORRECT_TRACKS:
+                    target->Say(SAY_CORRECT_TRACKS, target);
+                    break;
+                case SPELL_INCORRECT_TRACKS:
+                    target->Say(SAY_INCORRECT_TRACKS, target);
+                    break;
+                default:
+                    break;
             }
         }
+    }
 
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_shango_tracks_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void Register() override
     {
-        return new spell_shango_tracks_SpellScript();
+        OnEffectHitTarget += SpellEffectFn(spell_shango_tracks::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
@@ -1523,26 +1292,21 @@ class spell_q12611_deathbolt : public SpellScript
 
 void AddSC_sholazar_basin()
 {
-    // Ours
-    new spell_q12726_song_of_wind_and_water();
-    new npc_artruis_the_hearthless();
+    RegisterSpellScript(spell_q12726_song_of_wind_and_water);
     new npc_still_at_it_trigger();
     new npc_mcmanus();
     new go_pressure_valve();
     new go_brazier();
-
-    // Theirs
     new npc_vekjik();
     new npc_avatar_of_freya();
     new npc_bushwhacker();
     new npc_engineer_helice();
     new npc_adventurous_dwarf();
     new npc_jungle_punch_target();
-    new spell_q12620_the_lifewarden_wrath();
-    new spell_q12589_shoot_rjr();
+    RegisterSpellScript(spell_q12620_the_lifewarden_wrath);
+    RegisterSpellScript(spell_q12589_shoot_rjr);
     new npc_vics_flying_machine();
-    new spell_shango_tracks();
+    RegisterSpellScript(spell_shango_tracks);
 
     RegisterSpellScript(spell_q12611_deathbolt);
 }
-

@@ -18,14 +18,11 @@
 #include "GameTime.h"
 #include "GridNotifiers.h"
 #include "ObjectAccessor.h"
-#include "Opcodes.h"
 #include "ScriptMgr.h"
 #include "SpellAuraEffects.h"
 #include "Transport.h"
-#include "UpdateMask.h"
-#include "World.h"
 
-DynamicObject::DynamicObject(bool isWorldObject) : WorldObject(isWorldObject), MovableMapObject(),
+DynamicObject::DynamicObject() : WorldObject(), MovableMapObject(),
     _aura(nullptr), _removedAura(nullptr), _caster(nullptr), _duration(0), _isViewpoint(false), _updateViewerVisibilityTimer(0)
 {
     m_objectType |= TYPEMASK_DYNAMICOBJECT;
@@ -129,11 +126,6 @@ bool DynamicObject::CreateDynamicObject(ObjectGuid::LowType guidlow, Unit* caste
     {
         // Returning false will cause the object to be deleted - remove from transport
         return false;
-    }
-
-    if (IsWorldObject())
-    {
-        setActive(true);
     }
 
     return true;

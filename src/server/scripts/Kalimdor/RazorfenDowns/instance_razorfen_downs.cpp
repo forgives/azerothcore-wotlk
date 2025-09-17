@@ -15,7 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "CreatureScript.h"
 #include "InstanceMapScript.h"
 #include "InstanceScript.h"
 #include "ObjectMgr.h"
@@ -24,7 +23,7 @@
 class instance_razorfen_downs : public InstanceMapScript
 {
 public:
-    instance_razorfen_downs() : InstanceMapScript("instance_razorfen_downs", 129) { }
+    instance_razorfen_downs() : InstanceMapScript("instance_razorfen_downs", MAP_RAZORFEN_DOWNS) { }
 
     struct instance_razorfen_downs_InstanceMapScript : public InstanceScript
     {

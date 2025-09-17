@@ -15,13 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-SDName: Bosses_Opera
-SD%Complete: 90
-SDComment: Oz, Hood, and RAJ event implemented. RAJ event requires more testing.
-SDCategory: Karazhan
-EndScriptData */
-
 #include "CreatureScript.h"
 #include "Player.h"
 #include "ScriptedCreature.h"
@@ -941,7 +934,7 @@ struct boss_julianne : public ScriptedAI
 
     void DoAction(int32 action) override
     {
-        switch(action)
+        switch (action)
         {
             case ACTION_FAKING_DEATH:
                 isFakingDeath = false;
@@ -1138,7 +1131,7 @@ struct boss_romulo : public ScriptedAI
 
     void DoAction(int32 action) override
     {
-        switch(action)
+        switch (action)
         {
             case ACTION_FAKING_DEATH:
                 isFakingDeath = false;
@@ -1210,7 +1203,7 @@ struct boss_romulo : public ScriptedAI
 
         _scheduler.Schedule(15s, GROUP_COMBAT, [this](TaskContext context)
         {
-            if (Unit* target = SelectTarget(SelectTargetMethod::Random, 1, 100, true))
+            if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 100, true, false))
             {
                 if (target && !me->HasInArc(M_PI, target))
                 {

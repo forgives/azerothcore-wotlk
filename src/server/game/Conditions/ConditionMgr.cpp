@@ -18,6 +18,8 @@
 #include "ConditionMgr.h"
 #include "AchievementMgr.h"
 #include "GameEventMgr.h"
+#include "GameObject.h"
+#include "GameObjectAI.h"
 #include "InstanceScript.h"
 #include "ObjectMgr.h"
 #include "Pet.h"
@@ -28,6 +30,7 @@
 #include "Spell.h"
 #include "SpellAuras.h"
 #include "SpellMgr.h"
+#include "WorldState.h"
 
 // Checks if object meets the condition
 // Can have CONDITION_SOURCE_TYPE_NONE && !mReferenceId if called from a special event (ie: eventAI)
@@ -67,7 +70,7 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo)
             {
                 // don't allow 0 items (it's checked during table load)
                 ASSERT(ConditionValue2);
-                bool checkBank = !!ConditionValue3;
+                bool checkBank = ConditionValue3;
                 condMeets = player->HasItemCount(ConditionValue1, ConditionValue2, checkBank);
             }
         }
@@ -408,7 +411,7 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo)
     }
     case CONDITION_WORLD_STATE:
     {
-        condMeets = ConditionValue2 == sWorld->getWorldState(ConditionValue1);
+        condMeets = ConditionValue2 == sWorldState->getWorldState(ConditionValue1);
         break;
     }
     case CONDITION_PHASEMASK:
@@ -568,6 +571,19 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo)
     {
         if (Unit* unit = object->ToUnit())
             condMeets = unit->IsCharmed();
+        break;
+    }
+    case CONDITION_WORLD_SCRIPT:
+    {
+        condMeets = sWorldState->IsConditionFulfilled(ConditionValue1, ConditionValue2);
+        break;
+    }
+    case CONDITION_AI_DATA:
+    {
+        if (Creature* creature = object->ToCreature())
+            condMeets = creature->AI() && creature->AI()->GetData(ConditionValue1) == ConditionValue2;
+        else if (GameObject* go = object->ToGameObject())
+            condMeets = go->AI() && go->AI()->GetData(ConditionValue1) == ConditionValue2;
         break;
     }
     default:
@@ -769,6 +785,12 @@ uint32 Condition::GetSearcherTypeMaskForCondition()
         break;
     case CONDITION_CHARMED:
         mask |= GRID_MAP_TYPE_MASK_CREATURE | GRID_MAP_TYPE_MASK_PLAYER;
+        break;
+    case CONDITION_WORLD_SCRIPT:
+        mask |= GRID_MAP_TYPE_MASK_ALL;
+        break;
+    case CONDITION_AI_DATA:
+        mask |= GRID_MAP_TYPE_MASK_CREATURE | GRID_MAP_TYPE_MASK_GAMEOBJECT;
         break;
     default:
         ASSERT(false && "Condition::GetSearcherTypeMaskForCondition - missing condition handling!");
@@ -1054,10 +1076,10 @@ void ConditionMgr::LoadConditions(bool isReload)
         LootTemplates_Spell.ResetConditions();
         LootTemplates_Player.ResetConditions();
 
-        LOG_INFO("server.loading", "Re-Loading `gossip_menu` Table for Conditions!");
+        LOG_INFO("server.loading", "Reloading `gossip_menu` Table for Conditions!");
         sObjectMgr->LoadGossipMenu();
 
-        LOG_INFO("server.loading", "Re-Loading `gossip_menu_option` Table for Conditions!");
+        LOG_INFO("server.loading", "Reloading `gossip_menu_option` Table for Conditions!");
         sObjectMgr->LoadGossipMenuItems();
         sSpellMgr->UnloadSpellInfoImplicitTargetConditionLists();
     }
