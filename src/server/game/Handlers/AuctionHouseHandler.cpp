@@ -507,7 +507,7 @@ void WorldSession::HandleAuctionPlaceBid(WorldPacket& recvData)
         GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_AUCTION_BID, auction->buyout);
 
         //- Mails must be under transaction control too to prevent data loss
-        sAuctionMgr->SendAuctionSalePendingMail(auction, trans);
+        sAuctionMgr->SendAuctionSalePendingMail(auction, trans, false);
         sAuctionMgr->SendAuctionSuccessfulMail(auction, trans);
         sAuctionMgr->SendAuctionWonMail(auction, trans);
         sScriptMgr->OnAuctionSuccessful(auctionHouse, auction);

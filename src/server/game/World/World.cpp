@@ -895,9 +895,9 @@ void World::SetInitialWorldSettings()
     _timers[WUPDATE_PINGDB].SetInterval(getIntConfig(CONFIG_DB_PING_INTERVAL)*MINUTE * IN_MILLISECONDS);  // Mysql ping time in minutes
 
     // our speed up
-    _timers[WUPDATE_5_SECS].SetInterval(5 * IN_MILLISECONDS);
+    // _timers[WUPDATE_5_SECS].SetInterval(5 * IN_MILLISECONDS);
 
-    _timers[WUPDATE_WHO_LIST].SetInterval(5 * IN_MILLISECONDS); // update who list cache every 5 seconds
+    _timers[WUPDATE_WHO_LIST].SetInterval(15 * IN_MILLISECONDS); // update who list cache every 5 seconds
 
     _mail_expire_check_timer = GameTime::GetGameTime() + 6h;
 
@@ -1112,14 +1112,15 @@ void World::Update(uint32 diff)
     }
 
     // pussywizard: our speed up and functionality
-    if (_timers[WUPDATE_5_SECS].Passed())
-    {
-        _timers[WUPDATE_5_SECS].Reset();
+    // kanlianhui: remove BANS
+    // if (_timers[WUPDATE_5_SECS].Passed())
+    // {
+    //     _timers[WUPDATE_5_SECS].Reset();
 
-        // moved here from HandleCharEnumOpcode
-        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_EXPIRED_BANS);
-        CharacterDatabase.Execute(stmt);
-    }
+    //     // moved here from HandleCharEnumOpcode
+    //     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_EXPIRED_BANS);
+    //     CharacterDatabase.Execute(stmt);
+    // }
 
     ///- Update Who List Cache
     if (_timers[WUPDATE_WHO_LIST].Passed())
@@ -1815,11 +1816,11 @@ bool World::IsFFAPvPRealm() const
 
 uint32 World::GetNextWhoListUpdateDelaySecs()
 {
-    if (_timers[WUPDATE_5_SECS].Passed())
+    if (_timers[WUPDATE_WHO_LIST].Passed())
         return 1;
 
-    uint32 t = _timers[WUPDATE_5_SECS].GetInterval() - _timers[WUPDATE_5_SECS].GetCurrent();
-    t = std::min(t, (uint32)_timers[WUPDATE_5_SECS].GetInterval());
+    uint32 t = _timers[WUPDATE_WHO_LIST].GetInterval() - _timers[WUPDATE_WHO_LIST].GetCurrent();
+    t = std::min(t, (uint32)_timers[WUPDATE_WHO_LIST].GetInterval());
 
     return uint32(std::ceil(t / 1000.0f));
 }
