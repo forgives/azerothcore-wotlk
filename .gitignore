@@ -107,3 +107,6 @@ local.properties
 # ==================
 .omc/
 env/
+.workbuddy/
+
+modules/mod-eluna/
