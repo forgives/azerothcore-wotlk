@@ -954,6 +954,9 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, uint32 effectMask, Unit 
             for (auto const& [immunitySchoolMask, immunityAuraId] : schoolList)
             {
                 SpellInfo const* immuneSpellInfo = sSpellMgr->GetSpellInfo(immunityAuraId);
+                if (immunityAuraId == spellInfo->Id)
+                    continue;
+
                 if ((immunitySchoolMask & schoolMask) != schoolMask)
                     continue;
 
@@ -8381,8 +8384,10 @@ void Unit::EnergizeBySpell(Unit* victim, uint32 spellID, uint32 damage, Powers p
 {
     victim->ModifyPower(powerType, damage, false);
 
-    if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellID))
-        victim->GetThreatMgr().ForwardThreatForAssistingMe(this, float(damage) / 2.0f, spellInfo, true);
+    // Happiness is internal hunter pet state, not combat assistance — energizing it must not generate threat
+    if (powerType != POWER_HAPPINESS)
+        if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellID))
+            victim->GetThreatMgr().ForwardThreatForAssistingMe(this, float(damage) / 2.0f, spellInfo, true);
 
     SendEnergizeSpellLog(victim, spellID, damage, powerType);
 }
@@ -10012,7 +10017,12 @@ bool Unit::IsImmunedToAuraPeriodicTick(Unit const* caster, SpellInfo const* spel
     return false;
 }
 
-bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Spell const* spell)
+bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Unit const* caster)
+{
+    return IsImmunedToSpell(spellInfo, caster, spellInfo ? spellInfo->GetSchoolMask() : SPELL_SCHOOL_MASK_NONE);
+}
+
+bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Unit const* caster, SpellSchoolMask spellSchoolMask)
 {
     if (!spellInfo)
         return false;
@@ -10058,7 +10068,7 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Spell const* spell)
             continue;
 
         // Xinef: if target is immune to one effect, and the spell has transform aura - it is immune to whole spell
-        if (IsImmunedToSpellEffect(spellInfo, i))
+        if (IsImmunedToSpellEffect(spellInfo, i, caster))
         {
             if (spellInfo->HasAura(SPELL_AURA_TRANSFORM))
                 return true;
@@ -10073,23 +10083,19 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Spell const* spell)
 
     if (!spellInfo->HasAttribute(SPELL_ATTR2_NO_SCHOOL_IMMUNITIES))
     {
-        SpellSchoolMask spellSchoolMask = spellInfo->GetSchoolMask();
-        Unit const* spellCaster = spell ? spell->GetCaster() : nullptr;
-        if (spell)
-        {
-            spellSchoolMask = spell->GetSpellSchoolMask();
-        }
-
         if (spellSchoolMask != SPELL_SCHOOL_MASK_NONE)
         {
             SpellImmuneContainer const& schoolList = m_spellImmune[IMMUNITY_SCHOOL];
             for (auto itr = schoolList.begin(); itr != schoolList.end(); ++itr)
             {
+                if (itr->second == spellInfo->Id)
+                    continue;
+
                 SpellInfo const* immuneSpellInfo = sSpellMgr->GetSpellInfo(itr->second);
                 if (!(itr->first & spellSchoolMask))
                     continue;
 
-                if (IgnoresSchoolImmunityFromFriendlyCaster(spellCaster, itr->second, immuneSpellInfo))
+                if (IgnoresSchoolImmunityFromFriendlyCaster(caster, itr->second, immuneSpellInfo))
                     continue;
 
                 if (spellInfo->CanPierceImmuneAura(immuneSpellInfo))
@@ -10101,6 +10107,16 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Spell const* spell)
     }
 
     return false;
+}
+
+bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, Spell const* spell)
+{
+    if (!spellInfo)
+        return false;
+
+    Unit const* spellCaster = spell ? spell->GetCaster() : nullptr;
+    SpellSchoolMask spellSchoolMask = spell ? spell->GetSpellSchoolMask() : spellInfo->GetSchoolMask();
+    return IsImmunedToSpell(spellInfo, spellCaster, spellSchoolMask);
 }
 
 bool Unit::IsImmunedToSpellEffect(SpellInfo const* spellInfo, uint32 index, Unit const* caster /*= nullptr*/) const
@@ -10616,6 +10632,8 @@ void Unit::Dismount()
             if (charm->IsCreature() && !charm->HasUnitState(UNIT_STATE_STUNNED))
                 charm->RemoveUnitFlag(UNIT_FLAG_STUNNED);
     }
+
+    UpdateSpeed(MOVE_RUN, true);
 }
 
 void Unit::SetImmuneToPC(bool apply, bool keepCombat)
@@ -15311,29 +15329,9 @@ void Unit::SetPhaseMask(uint32 newPhaseMask, bool update)
 
         if (!sScriptMgr->CanSetPhaseMask(this, newPhaseMask, update))
             return;
-
-        // Phase-related threat updates are done AFTER the phase change below
     }
 
     WorldObject::SetPhaseMask(newPhaseMask, false);
-
-    // Now update threat online states with the new phase mask applied
-    if (IsCreature() || (IsPlayer() && !ToPlayer()->IsGameMaster() && !ToPlayer()->GetSession()->PlayerLogout()))
-    {
-        // Update online state for units that have me on their threat list
-        for (auto const& pair : GetThreatMgr().GetThreatenedByMeList())
-        {
-            if (ThreatReference* ref = pair.second)
-                ref->UpdateOffline();
-        }
-
-        // Update online state for units on my threat list
-        if (!IsPlayer())
-        {
-            for (ThreatReference* ref : GetThreatMgr().GetModifiableThreatList())
-                ref->UpdateOffline();
-        }
-    }
 
     if (!IsInWorld())
     {
