@@ -944,17 +944,199 @@ class GuildScript : public ScriptObject
 
 ## 13. GM 命令
 
-通过 `cs_guild.cpp` 提供的命令，所有命令均支持控制台执行（Console::Yes）：
+所有公会 GM 命令定义在 `src/server/scripts/Commands/cs_guild.cpp` (共 275 行)，注册为 `.guild` 子命令。所有命令均支持控制台执行 (Console::Yes)，通过 RBAC 权限系统控制，要求 **SEC_GAMEMASTER (等级 2)** 或更高权限。
 
-| 命令 | 权限 | 用途 |
-|------|------|------|
-| `.guild create [leader] [guildname]` | RBAC_PERM_COMMAND_GUILD_CREATE | 以指定玩家为会长创建公会 |
-| `.guild delete [guildname]` | RBAC_PERM_COMMAND_GUILD_DELETE | 解散公会 |
-| `.guild invite [playername] [guildname]` | RBAC_PERM_COMMAND_GUILD_INVITE | 邀请玩家加入公会 |
-| `.guild uninvite [playername]` | RBAC_PERM_COMMAND_GUILD_UNINVITE | 踢出公会 |
-| `.guild rank [playername] [rank]` | RBAC_PERM_COMMAND_GUILD_RANK | 设置成员等级 |
-| `.guild rename [oldname] [newname]` | RBAC_PERM_COMMAND_GUILD_RENAME | 重命名公会 |
-| `.guild info [guildid|guildname]` | RBAC_PERM_COMMAND_GUILD_INFO | 显示公会详情（名称/会长/日期/成员数/金币/MOTD/等级列表） |
+### 13.1 命令总览
+
+| 命令 | 语法 | 权限 ID | 处理函数 | 说明 |
+|------|------|---------|----------|------|
+| `.guild create` | `.guild create [leader] "GuildName"` | 402 | `HandleGuildCreateCommand` (行 50) | 创建公会 |
+| `.guild delete` | `.guild delete "GuildName"` | 403 | `HandleGuildDeleteCommand` (行 101) | 解散公会 |
+| `.guild invite` | `.guild invite [player] "GuildName"` | 404 | `HandleGuildInviteCommand` (行 118) | 邀请玩家加入公会 |
+| `.guild uninvite` | `.guild uninvite [player]` | 405 | `HandleGuildUninviteCommand` (行 143) | 将玩家踢出公会 |
+| `.guild rank` | `.guild rank [player] #Rank` | 406 | `HandleGuildRankCommand` (行 169) | 设置成员等级 |
+| `.guild rename` | `.guild rename "OldName" "NewName"` | 407 | `HandleGuildRenameCommand` (行 188) | 重命名公会 |
+| `.guild info` | `.guild info [GuildId \| "GuildName"]` | 794 | `HandleGuildInfoCommand` (行 218) | 显示公会详情 |
+
+### 13.2 各命令详细说明
+
+#### `.guild create`
+
+**语法:** `.guild create [$GuildLeaderName] "GuildName"`
+
+**功能:** 以指定玩家为会长创建新公会。
+
+**参数:**
+- `$GuildLeaderName` (可选) — 玩家标识符。省略则使用当前选中目标或自身。
+- `"GuildName"` (必填, 引号字符串) — 新公会名称。
+
+**验证逻辑:**
+1. 目标玩家必须存在且已连接
+2. 目标玩家不能已在公会中
+3. 公会名称不能已存在
+4. 公会名称必须是合法的公会章程名称
+
+**实现:** 创建 Guild 对象并注册到 GuildMgr。
+
+---
+
+#### `.guild delete`
+
+**语法:** `.guild delete "GuildName"`
+
+**功能:** 永久删除指定公会。
+
+**参数:**
+- `"GuildName"` (必填, 引号字符串) — 要删除的公会名称 (精确匹配)。
+
+**实现:** 通过 `sGuildMgr->GetGuildByName()` 查找公会，调用 `Disband()` 解散并删除对象。注意: 该处理器不显示确认消息。
+
+---
+
+#### `.guild invite`
+
+**语法:** `.guild invite [$CharacterName] "GuildName"`
+
+**功能:** 将玩家加入指定公会。
+
+**参数:**
+- `$CharacterName` (可选) — 玩家标识符。省略则使用当前选中目标或自身。
+- `"GuildName"` (必填, 引号字符串) — 目标公会名称。
+
+**实现:** 通过 `sGuildMgr->GetGuildByName()` 查找公会，调用 `targetGuild->AddMember(target->GetGUID())`。`AddMember` 内部检查玩家是否已在公会中。
+
+---
+
+#### `.guild uninvite`
+
+**语法:** `.guild uninvite [$CharacterName]`
+
+**功能:** 将玩家从其当前公会中移除。
+
+**参数:**
+- `$CharacterName` (可选) — 玩家标识符。省略则使用当前选中目标或自身。
+
+**离线支持:** 是 — 如果玩家在线，通过 `GetGuildId()` 获取公会 ID；如果离线，通过 `sCharacterCache->GetCharacterGuildIdByGuid()` 查询。
+
+**实现:** 调用 `targetGuild->DeleteMember(target->GetGUID(), false, true, true)`。
+
+---
+
+#### `.guild rank`
+
+**语法:** `.guild rank [$CharacterName] #RankNumber`
+
+**功能:** 变更玩家的公会等级。
+
+**参数:**
+- `$CharacterName` (可选) — 玩家标识符。省略则使用当前选中目标或自身。
+- `#RankNumber` (必填, uint8) — 等级数值 (0 = 公会长, 1 = 官员, 等)。
+
+**离线支持:** 是 — 与 `.guild uninvite` 相同的在线/离线查找模式。
+
+**实现:** 调用 `targetGuild->ChangeMemberRank(player->GetGUID(), rank)`。
+
+---
+
+#### `.guild rename`
+
+**语法:** `.guild rename "OldGuildName" "NewGuildName"`
+
+**功能:** 重命名现有公会。
+
+**参数:**
+- `"OldGuildName"` (必填, 引号字符串) — 当前公会名称。
+- `"NewGuildName"` (必填, 引号字符串) — 新公会名称。
+
+**验证逻辑:**
+1. 旧名称必须对应一个存在的公会
+2. 新名称不能已被其他公会使用
+
+**实现:** 调用 `guild->SetName(newGuildStr)`，完成后显示成功消息 (`LANG_GUILD_RENAME_DONE`)。
+
+---
+
+#### `.guild info`
+
+**语法:** `.guild info [GuildId | "GuildName"]`
+
+**功能:** 显示公会的详细信息。
+
+**参数:**
+- `GuildId` (可选, 数字) — 公会数字 ID。
+- `"GuildName"` (可选, 引号字符串) — 公会名称。
+- 如都不提供，则使用当前选中目标或自身的公会。
+
+**显示信息:**
+- 公会名称和 ID
+- 公会长名字和 GUID
+- 创建日期 (格式: YYYY-MM-DD HH:MM:SS)
+- 成员数量
+- 银行金币 (金币单位)
+- 每日公告 (MOTD)
+- 公会信息文本
+- 完整的公会等级列表 (ID 和名称)
+
+**特殊说明:** 使用 `Variant<ObjectGuid::LowType, QuotedString>` 类型参数，同时支持数字 ID 和名称字符串两种标识方式。
+
+### 13.3 RBAC 权限定义
+
+| 权限名 | ID | 定义位置 | 说明 |
+|--------|----|----------|------|
+| `RBAC_PERM_COMMAND_GUILD` | 401 | RBAC.h 行 237 | 父级权限 (`.guild` 命令组) |
+| `RBAC_PERM_COMMAND_GUILD_CREATE` | 402 | RBAC.h 行 238 | `.guild create` |
+| `RBAC_PERM_COMMAND_GUILD_DELETE` | 403 | RBAC.h 行 239 | `.guild delete` |
+| `RBAC_PERM_COMMAND_GUILD_INVITE` | 404 | RBAC.h 行 240 | `.guild invite` |
+| `RBAC_PERM_COMMAND_GUILD_UNINVITE` | 405 | RBAC.h 行 241 | `.guild uninvite` |
+| `RBAC_PERM_COMMAND_GUILD_RANK` | 406 | RBAC.h 行 242 | `.guild rank` |
+| `RBAC_PERM_COMMAND_GUILD_RENAME` | 407 | RBAC.h 行 243 | `.guild rename` |
+| `RBAC_PERM_COMMAND_GUILD_INFO` | 794 | RBAC.h 行 617 | `.guild info` |
+
+权限 401 是 `.guild` 命令组的父级权限，不直接被任何处理器引用。权限 401-407 通过 `data/sql/updates/db_auth/2026_05_01_00.sql` (行 892) 分配给安全等级 2 (GM)。权限 794 同样分配给安全等级 2 (行 943)。
+
+### 13.4 权限层级说明
+
+```
+Role 192 (SEC_ADMINISTRATOR, 等级 3)
+    └── Role 193 (SEC_GAMEMASTER, 等级 2)
+            ├── Role 197 (Gamemaster Commands)  ← 包含组队命令
+            └── Role 194 (SEC_MODERATOR, 等级 1)
+                    └── Role 195 (Player Commands)  ← 不包含公会命令
+```
+
+所有公会 GM 命令的 RBAC 权限 (401-407, 794) 均归属于 **安全等级 2 (GM)** 或更高。管理员 (SEC_MODERATOR, 等级 1) 和普通玩家无法使用这些命令。
+
+### 13.5 相关命令 (非公会命令但涉及公会信息)
+
+#### `.pinfo` (玩家信息)
+
+- **文件:** `src/server/scripts/Commands/cs_misc.cpp`，行 1994 (处理器)
+- **语法:** `.pinfo [player]`
+- **功能:** 显示玩家详细信息，其中包含公会相关数据:
+  - 公会名称、公会 ID
+  - 公会等级名称和等级编号
+  - 公会公告 (Public Note)
+  - 官员备注 (Officer Note)
+- **权限:** `RBAC_PERM_COMMAND_PINFO`
+
+#### 其他文件中的公会引用
+
+| 文件 | 引用方式 |
+|------|----------|
+| `cs_npc.cpp` | `.npc info` 显示 `UNIT_NPC_FLAG_GUILD_BANKER` 标志 |
+| `cs_debug.cpp` | 阵营变更调试命令中涉及公会 (行 1919-1929) |
+| `cs_list.cpp` | `.list item` 输出中引用公会银行物品 (行 299-343) |
+| `cs_cache.cpp` | 角色缓存操作中引用 `GuildId` (行 70) |
+
+以上均非公会管理命令，仅在输出中引用公会数据。
+
+### 13.6 命令脚本注册
+
+`guild_commandscript` 类通过 `AddSC_guild_commandscript()` 注册，加载路径:
+
+```
+cs_guild.cpp → AddSC_guild_commandscript() → cs_script_loader.cpp → 命令系统
+```
 
 ---
 
